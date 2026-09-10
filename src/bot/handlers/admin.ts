@@ -1463,7 +1463,7 @@ export async function handleAdminReceipt(ctx: BotContext, orderId: number) {
             parse_mode: "HTML",
           });
     try {
-      await sendPhoto(order.receiptMimeType).catch(() =>
+      await sendPhoto(order.receiptMimeType ?? undefined).catch(() =>
         api.sendDocument(ctx.from!.id, order.receiptFileId!, {
           caption: fileCaption,
           parse_mode: "HTML",

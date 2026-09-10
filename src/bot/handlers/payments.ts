@@ -76,10 +76,10 @@ export async function processReceiptMessage(ctx: BotContext): Promise<boolean> {
 
   try {
     await updateOrder(order.id, {
-      receiptUrl: null,
+      receiptUrl: undefined,
       receiptFileName: fileName,
       receiptFileId: fileId,
-      receiptMimeType: mimeType ?? null,
+      receiptMimeType: mimeType ?? undefined,
     });
 
     await createPaymentRecord(order.id, dbUser.id, Number(order.total), undefined, fileName, fileId, mimeType);
