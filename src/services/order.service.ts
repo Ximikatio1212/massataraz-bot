@@ -76,6 +76,7 @@ export async function createOrder(userId: number) {
 }
 
 export async function getOrderById(id: number) {
+  if (!Number.isInteger(id) || id <= 0) return null;
   return prisma.order.findUnique({
     where: { id },
     include: { items: true, payments: true, user: true },
@@ -133,6 +134,7 @@ export async function getOrderCounts() {
 export async function confirmOrderPayment(
   orderId: number
 ): Promise<{ ok: boolean; error?: string; order?: any }> {
+  if (!Number.isInteger(orderId) || orderId <= 0) return { ok: false, error: "ORDER_NOT_FOUND" };
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     include: {
