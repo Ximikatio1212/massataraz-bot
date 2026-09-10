@@ -6,6 +6,7 @@ import { createPaymentRecord } from "../../services/payment.service";
 import { validateFileForReceipt } from "../../services/storage.service";
 import { notifyAdminsNewOrder } from "../../services/notifications.service";
 import { replyText } from "../helpers";
+import { userFriendlyError } from "../../utils/errors";
 import { ConversationState } from "@prisma/client";
 import { getBot } from "../../instance";
 
@@ -73,7 +74,8 @@ export async function processReceiptMessage(ctx: BotContext): Promise<boolean> {
     return true;
   }
 
-  await updateOrder(order.id, {
+  try {
+    await updateOrder(order.id, {
       receiptUrl: null,
       receiptFileName: fileName,
       receiptFileId: fileId,
