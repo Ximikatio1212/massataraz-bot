@@ -1451,17 +1451,24 @@ export async function handleAdminReceipt(ctx: BotContext, orderId: number) {
 
   if (order.receiptFileId && !order.receiptUrl && ctx.from) {
     const fileCaption = `🧾 <b>ЧЕК ЗАКАЗА №${order.id}</b>`;
-    const send = (method: "sendPhoto" | "sendDocument") =>
-      getBot().api[method](ctx.from!.id, order.receiptFileId!, {
-        caption: fileCaption,
-        parse_mode: "HTML",
-      });
+    const api = getBot().api;
+    const sendPhoto = (mime?: string) =>
+      mime?.startsWith("image/")
+        ? api.sendPhoto(ctx.from!.id, order.receiptFileId!, {
+            caption: fileCaption,
+            parse_mode: "HTML",
+          })
+        : api.sendDocument(ctx.from!.id, order.receiptFileId!, {
+            caption: fileCaption,
+            parse_mode: "HTML",
+          });
     try {
-      if ((order.receiptMimeType ?? "").startsWith("image/")) {
-        await send("sendPhoto").catch(() => send("sendDocument"));
-      } else {
-        await send("sendDocument");
-      }
+      await sendPhoto(order.receiptMimeType).catch(() =>
+        api.sendDocument(ctx.from!.id, order.receiptFileId!, {
+          caption: fileCaption,
+          parse_mode: "HTML",
+        })
+      );
     } catch (e) {
       console.error("failed to send receipt file", e);
       return answerAlert(ctx, "❌ Не удалось отправить чек.");
@@ -1478,5 +1485,4 @@ export async function handleAdminReceipt(ctx: BotContext, orderId: number) {
     .text("⬅️ Назад", "admin:orders");
 
   await editText(ctx, `🧾 <b>ЧЕК ЗАКАЗА №${order.id}</b>\n\n${order.receiptUrl ? "Чек доступен по ссылке ниже." : "Чек отправлен выше."}`, kb);
-}
 }

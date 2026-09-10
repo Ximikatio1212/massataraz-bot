@@ -58,13 +58,20 @@ function buildOrderKeyboard(order: any): InlineKeyboard {
 async function sendOrderToAdmin(bot: Bot<any>, adminId: bigint, order: any) {
   const text = buildOrderText(order);
   const kb = buildOrderKeyboard(order);
+  const api = bot.api;
 
-  const send = (method: "sendPhoto" | "sendDocument") =>
-    bot.api[method](adminId.toString(), order.receiptFileId, {
-      caption: text,
-      parse_mode: "HTML",
-      reply_markup: kb,
-    });
+  const send = (method: "sendPhoto" | "sendDocument"): Promise<unknown> =>
+    method === "sendPhoto"
+      ? (api.sendPhoto(adminId.toString(), order.receiptFileId, {
+          caption: text,
+          parse_mode: "HTML",
+          reply_markup: kb,
+        }) as unknown as Promise<unknown>)
+      : (api.sendDocument(adminId.toString(), order.receiptFileId, {
+          caption: text,
+          parse_mode: "HTML",
+          reply_markup: kb,
+        }) as unknown as Promise<unknown>);
 
   try {
     if (order.receiptFileId) {
