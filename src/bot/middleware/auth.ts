@@ -13,6 +13,7 @@ export interface BotContext extends Context {
 }
 
 export const authMiddleware: Middleware<BotContext> = async (ctx, next) => {
+  ctx.state = {};
   const from = ctx.from;
   if (!from) return;
   ctx.state.user = {
