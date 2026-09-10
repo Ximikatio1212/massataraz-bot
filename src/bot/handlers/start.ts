@@ -1,0 +1,38 @@
+import { BotContext } from "../middleware/auth";
+import { getOrCreateUser } from "../../services/user.service";
+import { mainMenuKeyboard } from "../keyboards/main";
+import { editText, replyText } from "../helpers";
+
+export async function startHandler(ctx: BotContext) {
+  const from = ctx.from;
+  if (!from) return;
+
+  const user = await getOrCreateUser(
+    BigInt(from.id),
+    from.username,
+    from.first_name,
+    from.last_name
+  );
+
+  const isAdmin = ctx.state.user?.isAdmin ?? false;
+  const greeting = isAdmin
+    ? `🏋️ <b>SPORT SHOP</b>\n\n<i>Massa Taraz</i>\n\nЗдравствуйте, администратор! Выберите раздел:`
+    : `🏋️ <b>SPORT SHOP</b>\n\n<i>Massa Taraz</i>\n\nПривет, ${safeHtml(from.first_name ?? "")}! Выберите раздел:`;
+
+  if (ctx.callbackQuery) {
+    await editText(ctx, greeting, mainMenuKeyboard(isAdmin));
+  } else {
+    await replyText(ctx, greeting, mainMenuKeyboard(isAdmin));
+  }
+}
+
+export async function helpHandler(ctx: BotContext) {
+  await replyText(
+    ctx,
+    `🏋️ <b>Massa Taraz</b>\n\nМагазин спортивного питания.\n\nИспользуйте меню для покупок. По всем вопросам — напишите нам.`
+  );
+}
+
+function safeHtml(text: string): string {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
