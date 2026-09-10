@@ -106,6 +106,8 @@ export async function updateOrder(
     paidAt?: Date | null;
     receiptUrl?: string;
     receiptFileName?: string;
+    receiptFileId?: string;
+    receiptMimeType?: string;
     receiptSubmittedAt?: Date | null;
     fullName?: string;
     region?: string;

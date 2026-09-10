@@ -26,7 +26,7 @@ export async function handleAdminClients(ctx: BotContext, offset = 0) {
   const text = [`👥 <b>КЛИЕНТЫ</b>`, ``, ...lines, ``].join("\n");
 
   if (offset > 0) kb.text("⬅️ Назад", `admin:client:list:${Math.max(0, offset - 10)}`);
-  kb.text("Меню", "admin:clients");
+  kb.text("🏠 Меню", "admin:menu");
   if (users.length >= 10) kb.text("Вперёд ➡️", `admin:client:list:${offset + 10}`);
 
   await editText(ctx, text, kb);

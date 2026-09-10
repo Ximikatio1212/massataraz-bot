@@ -12,12 +12,12 @@ export async function handleCoursesList(ctx: BotContext) {
   const courses = await getActiveCourses();
 
   if (courses.length === 0) {
-    await editText(ctx, "📚 <b>ГОТОВЫЕ КУРСЫ</b>\n\nПока нет доступных курсов.");
+    await editText(ctx, "📚 <b>ГОТОВЫЕ СВЯЗКИ</b>\n\nПока нет доступных курсов.");
     return;
   }
 
   const kb = new InlineKeyboard();
-  let text = "📚 <b>ГОТОВЫЕ КУРСЫ</b>\n\n";
+  let text = "📚 <b>ГОТОВЫЕ СВЯЗКИ</b>\n\n";
 
   courses.forEach((course) => {
     text += `🔥 <b>${course.name}</b>\n💊 ${course.items.length} товар${

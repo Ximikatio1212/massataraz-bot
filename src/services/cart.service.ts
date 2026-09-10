@@ -21,8 +21,13 @@ export async function addProductToCart(userId: number, productId: number, quanti
   if (!product || !product.isActive) {
     throw new Error("PRODUCT_UNAVAILABLE");
   }
-  if (product.stock < 1) {
-    throw new Error("PRODUCT_NO_STOCK");
+
+  const existing = await prisma.cartItem.findUnique({
+    where: { userId_productId: { userId, productId } },
+  });
+  const currentQty = existing?.quantity ?? 0;
+  if (currentQty + quantity > product.stock) {
+    throw new Error(product.stock < 1 ? "PRODUCT_NO_STOCK" : "PRODUCT_STOCK_LIMIT");
   }
 
   return prisma.cartItem.upsert({
@@ -53,12 +58,19 @@ export async function addCourseToCart(userId: number, courseId: number, quantity
   if (course.items.length === 0) {
     throw new Error("COURSE_EMPTY");
   }
+
+  const existing = await prisma.cartItem.findUnique({
+    where: { userId_courseId: { userId, courseId } },
+  });
+  const currentQty = existing?.quantity ?? 0;
+
   for (const item of course.items) {
     if (!item.product || !item.product.isActive) {
       throw new Error("COURSE_COMPONENT_UNAVAILABLE");
     }
-    if (item.product.stock < item.quantity) {
-      throw new Error("COURSE_COMPONENT_NO_STOCK");
+    const needed = item.quantity * (currentQty + quantity);
+    if (item.product.stock < needed) {
+      throw new Error(currentQty === 0 ? "COURSE_COMPONENT_NO_STOCK" : "COURSE_STOCK_LIMIT");
     }
   }
 
@@ -80,8 +92,28 @@ export async function addCourseToCart(userId: number, courseId: number, quantity
 }
 
 export async function increaseCartItem(cartItemId: number, userId: number) {
-  const item = await prisma.cartItem.findFirst({ where: { id: cartItemId, userId } });
+  const item = await prisma.cartItem.findFirst({
+    where: { id: cartItemId, userId },
+    include: {
+      product: true,
+      course: { include: { items: { include: { product: true } } } },
+    },
+  });
   if (!item) throw new Error("CART_ITEM_NOT_FOUND");
+
+  if (item.type === CartItemType.product && item.product) {
+    if (item.quantity + 1 > item.product.stock) {
+      throw new Error(item.product.stock < 1 ? "PRODUCT_NO_STOCK" : "PRODUCT_STOCK_LIMIT");
+    }
+  } else if (item.type === CartItemType.course && item.course) {
+    for (const ci of item.course.items) {
+      if (!ci.product || !ci.product.isActive) throw new Error("COURSE_COMPONENT_UNAVAILABLE");
+      const needed = ci.quantity * (item.quantity + 1);
+      if (ci.product.stock < needed) {
+        throw new Error(item.quantity === 0 ? "COURSE_COMPONENT_NO_STOCK" : "COURSE_STOCK_LIMIT");
+      }
+    }
+  }
 
   await prisma.cartItem.update({
     where: { id: cartItemId },

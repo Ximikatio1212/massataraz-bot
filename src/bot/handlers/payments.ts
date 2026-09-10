@@ -3,10 +3,9 @@ import { getUserByTelegramId } from "../../services/user.service";
 import { getState, setState, resetState } from "../../services/state.service";
 import { getOrderById, updateOrder, completeReceiptSubmission } from "../../services/order.service";
 import { createPaymentRecord } from "../../services/payment.service";
-import { uploadFile, validateFileForReceipt } from "../../services/storage.service";
+import { validateFileForReceipt } from "../../services/storage.service";
 import { notifyAdminsNewOrder } from "../../services/notifications.service";
 import { replyText } from "../helpers";
-import { userFriendlyError } from "../../utils/errors";
 import { ConversationState } from "@prisma/client";
 import { getBot } from "../../instance";
 
@@ -74,22 +73,14 @@ export async function processReceiptMessage(ctx: BotContext): Promise<boolean> {
     return true;
   }
 
-  try {
-    const file = await getBot().api.getFile(fileId);
-    const buffer: Buffer = await downloadTelegramFile(file.file_path!);
-    const { url, key } = await uploadFile(
-      `receipts/${order.id}`,
-      fileName,
-      buffer,
-      mimeType ?? "application/octet-stream"
-    );
-
-    await updateOrder(order.id, {
-      receiptUrl: url,
-      receiptFileName: key,
+  await updateOrder(order.id, {
+      receiptUrl: null,
+      receiptFileName: fileName,
+      receiptFileId: fileId,
+      receiptMimeType: mimeType ?? null,
     });
 
-    await createPaymentRecord(order.id, dbUser.id, Number(order.total), url, key);
+    await createPaymentRecord(order.id, dbUser.id, Number(order.total), undefined, fileName, fileId, mimeType);
 
     const updatedOrder = await getOrderById(order.id);
     await completeReceiptSubmission(order.id);
@@ -102,21 +93,8 @@ export async function processReceiptMessage(ctx: BotContext): Promise<boolean> {
     await notifyAdminsNewOrder(getBot(), updatedOrder);
     return true;
   } catch (e: any) {
-    if (e?.message === "STORAGE_NOT_CONFIGURED") {
-      await replyText(ctx, userFriendlyError("STORAGE_NOT_CONFIGURED"));
-    } else {
-      console.error("Receipt upload failed", e);
-      await replyText(ctx, "⚠️ Не удалось сохранить чек. Попробуйте позже.");
-    }
+    console.error("Receipt upload failed", e);
+    await replyText(ctx, "⚠️ Не удалось сохранить чек. Попробуйте позже.");
     return true;
   }
-}
-
-async function downloadTelegramFile(filePath: string): Promise<Buffer> {
-  const token = process.env.BOT_TOKEN!;
-  const url = `https://api.telegram.org/file/bot${token}/${filePath}`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error("DOWNLOAD_FAILED");
-  const arrayBuffer = await res.arrayBuffer();
-  return Buffer.from(arrayBuffer);
 }

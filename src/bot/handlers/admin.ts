@@ -78,7 +78,7 @@ export async function handleAdminCategories(ctx: BotContext) {
 
 export async function handleAdminCourses(ctx: BotContext) {
   if (!isAdminUser(ctx)) return;
-  await editText(ctx, "📚 <b>ГОТОВЫЕ КУРСЫ</b>\n\nВыберите действие:", adminCoursesKeyboard());
+  await editText(ctx, "📚 <b>ГОТОВЫЕ СВЯЗКИ</b>\n\nВыберите действие:", adminCoursesKeyboard());
 }
 
 export async function handleAdminOrders(ctx: BotContext) {
@@ -1260,9 +1260,16 @@ export async function processAdminPhoto(ctx: BotContext): Promise<boolean> {
 
   try {
     const photo = ctx.message.photo[ctx.message.photo.length - 1];
-    const file = await getBot().api.getFile(photo.file_id);
-    const buffer = await downloadFile(file.file_path!);
-    const { url } = await uploadFile(keyPrefix, `image_${Date.now()}.jpg`, buffer, "image/jpeg");
+    let url: string | null = null;
+    try {
+      const file = await getBot().api.getFile(photo.file_id);
+      const buffer = await downloadFile(file.file_path!);
+      ({ url } = await uploadFile(keyPrefix, `image_${Date.now()}.jpg`, buffer, "image/jpeg"));
+    } catch (e: any) {
+      if (e?.message === "STORAGE_NOT_CONFIGURED") {
+        url = `tg:${photo.file_id}`;
+      } else throw e;
+    }
     payload.imageUrl = url;
 
     if (payload.editProductId) {
@@ -1440,14 +1447,36 @@ export async function handleAdminReceipt(ctx: BotContext, orderId: number) {
   if (!isAdminUser(ctx)) return;
   const order = await getOrderById(orderId);
   if (!order) return answerAlert(ctx, "❌ Заказ не найден.");
-  if (!order.receiptUrl) return answerAlert(ctx, "❌ Чек не загружен.");
+  if (!order.receiptUrl && !order.receiptFileId) return answerAlert(ctx, "❌ Чек не загружен.");
+
+  if (order.receiptFileId && !order.receiptUrl && ctx.from) {
+    const fileCaption = `🧾 <b>ЧЕК ЗАКАЗА №${order.id}</b>`;
+    const send = (method: "sendPhoto" | "sendDocument") =>
+      getBot().api[method](ctx.from!.id, order.receiptFileId!, {
+        caption: fileCaption,
+        parse_mode: "HTML",
+      });
+    try {
+      if ((order.receiptMimeType ?? "").startsWith("image/")) {
+        await send("sendPhoto").catch(() => send("sendDocument"));
+      } else {
+        await send("sendDocument");
+      }
+    } catch (e) {
+      console.error("failed to send receipt file", e);
+      return answerAlert(ctx, "❌ Не удалось отправить чек.");
+    }
+  }
 
   const kb = new InlineKeyboard()
-    .url("📎 Открыть чек", order.receiptUrl)
+    .text("👁 Смотреть чек", `admin:receipt:show:${orderId}`)
     .row()
     .text("✅ Подтвердить оплату", `admin:payment:confirm:${orderId}`)
     .row()
-    .text("❌ Отклонить оплату", `admin:payment:reject:${orderId}`);
+    .text("❌ Отклонить оплату", `admin:payment:reject:${orderId}`)
+    .row()
+    .text("⬅️ Назад", "admin:orders");
 
-  await editText(ctx, `🧾 <b>ЧЕК ЗАКАЗА №${order.id}</b>\n\nНажмите кнопку, чтобы открыть чек:`, kb);
+  await editText(ctx, `🧾 <b>ЧЕК ЗАКАЗА №${order.id}</b>\n\n${order.receiptUrl ? "Чек доступен по ссылке ниже." : "Чек отправлен выше."}`, kb);
+}
 }

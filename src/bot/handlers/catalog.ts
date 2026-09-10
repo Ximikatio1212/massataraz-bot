@@ -11,11 +11,11 @@ export async function handleCatalogStart(ctx: BotContext) {
   const categories = await getActiveCategories();
 
   if (categories.length === 0) {
-    await editText(ctx, "🛍 <b>СПОРТИВНОЕ ПИТАНИЕ</b>\n\nПока нет доступных категорий.");
+    await editText(ctx, "🛍 <b>ФАРМАКОЛОГИЯ</b>\n\nПока нет доступных категорий.");
     return;
   }
 
-  const text = "🛍 <b>СПОРТИВНОЕ ПИТАНИЕ</b>\n\nВыберите категорию:";
+  const text = "🛍 <b>ФАРМАКОЛОГИЯ</b>\n\nВыберите категорию:";
   await editText(ctx, text, categoriesKeyboard(categories, "main:menu"));
 }
 

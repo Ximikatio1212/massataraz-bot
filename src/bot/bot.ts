@@ -39,6 +39,10 @@ export function createBot(): Bot<BotContext> {
 export async function processUpdate(update: any): Promise<void> {
   const bot = createBot();
   await bot.init();
+  await bot.api.setMyCommands([
+    { command: "start", description: "🏠 Главное меню" },
+    { command: "help", description: "ℹ️ Помощь" },
+  ]).catch(() => {});
   await bot.handleUpdate(update);
 }
 

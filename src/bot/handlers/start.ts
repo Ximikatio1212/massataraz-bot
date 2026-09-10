@@ -16,8 +16,8 @@ export async function startHandler(ctx: BotContext) {
 
   const isAdmin = ctx.state.user?.isAdmin ?? false;
   const greeting = isAdmin
-    ? `🏋️ <b>SPORT SHOP</b>\n\n<i>Massa Taraz</i>\n\nЗдравствуйте, администратор! Выберите раздел:`
-    : `🏋️ <b>SPORT SHOP</b>\n\n<i>Massa Taraz</i>\n\nПривет, ${safeHtml(from.first_name ?? "")}! Выберите раздел:`;
+    ? `🏋️ <b>MASSA TARAZ</b>\n\nЗдравствуйте, администратор! Выберите раздел:`
+    : `🏋️ <b>MASSA TARAZ</b>\n\nПривет, ${safeHtml(from.first_name ?? "")}! Выберите раздел:`;
 
   if (ctx.callbackQuery) {
     await editText(ctx, greeting, mainMenuKeyboard(isAdmin));

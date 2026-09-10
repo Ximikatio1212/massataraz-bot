@@ -257,6 +257,7 @@ async function handleAdminCallback(ctx: BotContext, parts: string[]) {
     }
 
     case "receipt":
+      if (parts[2] === "show") return handleAdminReceipt(ctx, Number(parts[3]));
       return handleAdminReceipt(ctx, Number(parts[2]));
 
     case "client":

@@ -3,10 +3,12 @@ import { Context } from "grammy";
 export const ERROR_MESSAGES: Record<string, string> = {
   PRODUCT_UNAVAILABLE: "❌ Товар недоступен.",
   PRODUCT_NO_STOCK: "❌ Товара сейчас нет в наличии.",
+  PRODUCT_STOCK_LIMIT: "❌ Недостаточно товара на складе.",
   COURSE_UNAVAILABLE: "❌ Курс недоступен.",
   COURSE_EMPTY: "❌ Курс пуст, добавьте товары в курс.",
   COURSE_COMPONENT_UNAVAILABLE: "❌ Один из товаров курса недоступен.",
   COURSE_COMPONENT_NO_STOCK: "❌ Недостаточно товаров в составе курса на складе.",
+  COURSE_STOCK_LIMIT: "❌ Недостаточно товаров для нужного количества курса.",
   CART_EMPTY: "🛒 Корзина пуста.",
   CART_ITEM_NOT_FOUND: "❌ Позиция в корзине не найдена.",
   ORDER_NOT_FOUND: "❌ Заказ не найден.",

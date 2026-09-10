@@ -3,9 +3,9 @@ import { InlineKeyboard } from "grammy";
 export function mainMenuKeyboard(isAdmin: boolean) {
   const kb = new InlineKeyboard();
 
-  kb.text("🛍 Спортивное питание", "catalog:start");
+  kb.text("🛍 Фармакология", "catalog:start");
   kb.row();
-  kb.text("📚 Готовые курсы", "courses:list");
+  kb.text("📚 Готовые связки", "courses:list");
   kb.row();
   kb.text("🛒 Корзина", "cart:view");
   kb.row();
@@ -25,7 +25,7 @@ export function adminMenuKeyboard() {
     .row()
     .text("📁 Категории", "admin:categories")
     .row()
-    .text("📚 Готовые курсы", "admin:courses")
+    .text("📚 Готовые связки", "admin:courses")
     .row()
     .text("🛒 Заказы", "admin:orders")
     .row()

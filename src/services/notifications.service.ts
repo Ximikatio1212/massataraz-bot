@@ -1,4 +1,4 @@
-import { Bot, Context, InlineKeyboard } from "grammy";
+import { Bot, InlineKeyboard } from "grammy";
 import { formatPrice } from "../utils/formatting";
 
 function getAdminIds(): bigint[] {
@@ -17,16 +17,14 @@ function getAdminIds(): bigint[] {
     .filter((x): x is bigint => x !== null);
 }
 
-export async function notifyAdminsNewOrder(bot: Bot<any>, order: any) {
-  const adminIds = getAdminIds();
-
+function buildOrderText(order: any): string {
   const items = order.items
     .map((i: any) => `• ${i.productName} × ${i.quantity}`)
     .join("\n");
 
   const address = [order.region, order.city, order.address].filter(Boolean).join(", ");
 
-  const text = [
+  return [
     `🔔 <b>НОВЫЙ ЗАКАЗ #${order.id}</b>`,
     ``,
     `👤 <b>Клиент:</b>\n${order.fullName ?? "-"}`,
@@ -43,7 +41,9 @@ export async function notifyAdminsNewOrder(bot: Bot<any>, order: any) {
     ``,
     `📎 Чек прикреплён`,
   ].join("\n");
+}
 
+function buildOrderKeyboard(order: any): InlineKeyboard {
   const kb = new InlineKeyboard();
   if (order.receiptUrl) {
     kb.url("📎 Открыть чек", order.receiptUrl);
@@ -52,14 +52,43 @@ export async function notifyAdminsNewOrder(bot: Bot<any>, order: any) {
   kb.text("✅ Подтвердить оплату", `admin:payment:confirm:${order.id}`);
   kb.row();
   kb.text("❌ Отклонить оплату", `admin:payment:reject:${order.id}`);
+  return kb;
+}
 
+async function sendOrderToAdmin(bot: Bot<any>, adminId: bigint, order: any) {
+  const text = buildOrderText(order);
+  const kb = buildOrderKeyboard(order);
+
+  const send = (method: "sendPhoto" | "sendDocument") =>
+    bot.api[method](adminId.toString(), order.receiptFileId, {
+      caption: text,
+      parse_mode: "HTML",
+      reply_markup: kb,
+    });
+
+  try {
+    if (order.receiptFileId) {
+      // Always try sendPhoto first if the mime suggests an image.
+      if ((order.receiptMimeType ?? "").startsWith("image/")) {
+        await send("sendPhoto").catch(() => send("sendDocument"));
+      } else {
+        await send("sendDocument");
+      }
+      return;
+    }
+    await bot.api.sendMessage(adminId.toString(), text, {
+      parse_mode: "HTML",
+      reply_markup: kb,
+    });
+  } catch (e) {
+    console.error("failed to notify admin", adminId.toString(), e);
+  }
+}
+
+export async function notifyAdminsNewOrder(bot: Bot<any>, order: any) {
+  const adminIds = getAdminIds();
   for (const adminId of adminIds) {
-    await bot.api
-      .sendMessage(adminId.toString(), text, {
-        parse_mode: "HTML",
-        reply_markup: kb,
-      })
-      .catch((e) => console.error("failed to notify admin", adminId, e));
+    await sendOrderToAdmin(bot, adminId, order);
   }
 }
 
@@ -70,7 +99,7 @@ export async function notifyAdminOrderPaid(bot: Bot<any>, order: any) {
   for (const adminId of adminIds) {
     await bot.api
       .sendMessage(adminId.toString(), text)
-      .catch((e) => console.error("failed to notify admin", adminId, e));
+      .catch((e) => console.error("failed to notify admin", adminId.toString(), e));
   }
 }
 
@@ -81,6 +110,6 @@ export async function notifyAdminOrderRejected(bot: Bot<any>, order: any, reason
   for (const adminId of adminIds) {
     await bot.api
       .sendMessage(adminId.toString(), text)
-      .catch((e) => console.error("failed to notify admin", adminId, e));
+      .catch((e) => console.error("failed to notify admin", adminId.toString(), e));
   }
 }

@@ -89,6 +89,9 @@ export async function handleOrderView(ctx: BotContext, orderId: number) {
   if (order.receiptUrl) {
     kb.url("📎 Чек", order.receiptUrl);
     kb.row();
+  } else if (order.receiptFileId && isAdmin) {
+    kb.text("👁 Смотреть чек", `admin:receipt:show:${order.id}`);
+    kb.row();
   }
   if (isAdmin) {
     kb.text("🔄 Изменить статус", `admin:order:status:${order.id}`);

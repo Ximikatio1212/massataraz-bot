@@ -6,7 +6,9 @@ export async function createPaymentRecord(
   userId: number,
   amount: number,
   receiptUrl?: string,
-  receiptFileName?: string
+  receiptFileName?: string,
+  receiptFileId?: string,
+  receiptMimeType?: string
 ) {
   return prisma.payment.create({
     data: {
@@ -16,6 +18,8 @@ export async function createPaymentRecord(
       status: PaymentStatus.pending_verification,
       receiptUrl,
       receiptFileName,
+      receiptFileId,
+      receiptMimeType,
     },
   });
 }

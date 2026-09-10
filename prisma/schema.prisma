@@ -196,6 +196,8 @@ model Order {
   phone             String?
   receiptUrl        String?
   receiptFileName   String?
+  receiptFileId     String?
+  receiptMimeType   String?
   receiptSubmittedAt DateTime?
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
@@ -238,6 +240,8 @@ model Payment {
   status        PaymentStatus @default(pending)
   receiptUrl    String?
   receiptFileName String?
+  receiptFileId String?
+  receiptMimeType String?
   reason        String?
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
