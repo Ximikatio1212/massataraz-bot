@@ -78,7 +78,7 @@ export async function createOrder(userId: number) {
 export async function getOrderById(id: number) {
   return prisma.order.findUnique({
     where: { id },
-    include: { items: true, payments: true },
+    include: { items: true, payments: true, user: true },
   });
 }
 

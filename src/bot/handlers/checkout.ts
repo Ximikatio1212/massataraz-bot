@@ -222,7 +222,7 @@ export async function handleCheckoutEdit(ctx: BotContext) {
   if (!dbUser) return;
 
   const state = await getState(dbUser.id);
-  const payload: any = { ...(state?.payload ?? {}) };
+  const payload: any = { ...((state?.payload ?? {}) as any) };
   const orderId = payload.orderId;
   const clean = { orderId };
 

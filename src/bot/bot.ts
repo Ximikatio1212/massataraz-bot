@@ -1,6 +1,6 @@
 import { Bot } from "grammy";
 import { BotContext, authMiddleware } from "./middleware/auth";
-import { handleCallback, handleTextMessage, handleReceiptUpload, handleAdminPhoto, handleAdminDocument, handleAnyMessage } from "./router";
+import { handleCallback, handleTextMessage, handleReceiptUpload, handleAdminPhoto, handleAdminDocument } from "./router";
 import { startHandler, helpHandler } from "./handlers/start";
 import { setBotInstance } from "../instance";
 

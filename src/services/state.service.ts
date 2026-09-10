@@ -1,5 +1,5 @@
 import { prisma } from "../db/prisma";
-import { ConversationState } from "@prisma/client";
+import { ConversationState, Prisma } from "@prisma/client";
 
 export async function setState(userId: number, state: ConversationState, payload: unknown = {}) {
   await prisma.userState.upsert({
@@ -27,13 +27,13 @@ export async function resetState(userId: number) {
     where: { userId },
     update: {
       state: ConversationState.NONE,
-      payload: null,
+      payload: Prisma.JsonNull,
       updatedAt: new Date(),
     },
     create: {
       userId,
       state: ConversationState.NONE,
-      payload: null,
+      payload: Prisma.JsonNull,
     },
   });
 }

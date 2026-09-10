@@ -4,7 +4,6 @@ import { getUserByTelegramId } from "../../services/user.service";
 import { setState, resetState, getState } from "../../services/state.service";
 import { ConversationState } from "@prisma/client";
 import {
-  adminMenuKeyboard,
   adminProductsKeyboard,
   adminCategoriesKeyboard,
   adminCoursesKeyboard,
@@ -14,6 +13,7 @@ import {
   adminCategoryListKeyboard,
   adminCourseListKeyboard,
 } from "../keyboards/admin";
+import { adminMenuKeyboard } from "../keyboards/main";
 import { editText, replyText, answerAlert } from "../helpers";
 import { formatPrice } from "../../utils/formatting";
 import { validatePrice, validateQuantity, validateName } from "../../utils/validation";
@@ -403,7 +403,7 @@ export async function handleAdminProductCreateCat(ctx: BotContext, categoryId: n
   if (!dbUser) return;
 
   const state = await getState(dbUser.id);
-  const payload: any = { ...(state?.payload ?? {}) };
+  const payload: any = { ...((state?.payload ?? {}) as any) };
 
   if (payload.editProductId) {
     await updateProduct(Number(payload.editProductId), { categoryId });
@@ -423,7 +423,7 @@ export async function handleAdminProductCreateNoImage(ctx: BotContext) {
   if (!dbUser) return;
 
   const state = await getState(dbUser.id);
-  const payload: any = { ...(state?.payload ?? {}) };
+  const payload: any = { ...((state?.payload ?? {}) as any) };
   payload.imageUrl = null;
 
   await handleNoImage(ctx, dbUser.id, "product", payload);
@@ -532,7 +532,7 @@ export async function handleAdminCategoryCreateNoImage(ctx: BotContext) {
   const dbUser = await getUserByTelegramId(ctx.state.user.telegramId);
   if (!dbUser) return;
   const state = await getState(dbUser.id);
-  const payload: any = { ...(state?.payload ?? {}) };
+  const payload: any = { ...((state?.payload ?? {}) as any) };
   payload.imageUrl = null;
   await handleNoImage(ctx, dbUser.id, "category", payload);
 }
@@ -636,7 +636,7 @@ export async function handleAdminCourseCreateItem(ctx: BotContext, productId: nu
   if (!dbUser) return;
 
   const state = await getState(dbUser.id);
-  const payload: any = { ...(state?.payload ?? {}) };
+  const payload: any = { ...((state?.payload ?? {}) as any) };
   payload.addingProductId = productId;
   await setState(dbUser.id, ConversationState.WAITING_COURSE_ITEMS, payload);
   await replyText(ctx, `Введите <b>количество</b> этого товара в комплекте:`);
@@ -669,7 +669,7 @@ export async function handleAdminCourseCreateNoImage(ctx: BotContext) {
   const dbUser = await getUserByTelegramId(ctx.state.user.telegramId);
   if (!dbUser) return;
   const state = await getState(dbUser.id);
-  const payload: any = { ...(state?.payload ?? {}) };
+  const payload: any = { ...((state?.payload ?? {}) as any) };
   payload.imageUrl = null;
   await handleNoImage(ctx, dbUser.id, "course", payload);
 }
@@ -978,7 +978,7 @@ export async function processAdminText(ctx: BotContext, state: any, text: string
   const dbUser = await getUserByTelegramId(user.telegramId);
   if (!dbUser) return;
 
-  const payload: any = { ...(state.payload ?? {}) };
+  const payload: any = { ...((state.payload ?? {}) as any) };
   const value = text.trim();
 
   switch (state.state) {
@@ -1250,7 +1250,7 @@ export async function processAdminPhoto(ctx: BotContext): Promise<boolean> {
 
   const state = await getState(dbUser.id);
   if (!state) return false;
-  const payload: any = { ...(state.payload ?? {}) };
+  const payload: any = { ...((state.payload ?? {}) as any) };
 
   let keyPrefix = "";
   if (state.state === ConversationState.WAITING_PRODUCT_IMAGE) keyPrefix = "products";
@@ -1269,24 +1269,27 @@ export async function processAdminPhoto(ctx: BotContext): Promise<boolean> {
       await updateProduct(Number(payload.editProductId), { imageUrl: url });
       await resetState(dbUser.id);
       await editText(ctx, "✅ Изображение обновлено.");
-      return handleAdminProductView(ctx, Number(payload.editProductId));
+      await handleAdminProductView(ctx, Number(payload.editProductId));
+      return true;
     }
     if (payload.editCategoryId) {
       await updateCategory(Number(payload.editCategoryId), { imageUrl: url });
       await resetState(dbUser.id);
       await editText(ctx, "✅ Изображение обновлено.");
-      return handleAdminCategoryView(ctx, Number(payload.editCategoryId));
+      await handleAdminCategoryView(ctx, Number(payload.editCategoryId));
+      return true;
     }
     if (payload.editCourseId) {
       await updateCourse(Number(payload.editCourseId), { imageUrl: url });
       await resetState(dbUser.id);
       await editText(ctx, "✅ Изображение обновлено.");
-      return handleAdminCourseView(ctx, Number(payload.editCourseId));
+      await handleAdminCourseView(ctx, Number(payload.editCourseId));
+      return true;
     }
 
-    if (state.state === ConversationState.WAITING_PRODUCT_IMAGE) return showProductPreview(ctx, dbUser.id, payload);
-    if (state.state === ConversationState.WAITING_CATEGORY_IMAGE) return showCategoryPreview(ctx, dbUser.id, payload);
-    if (state.state === ConversationState.WAITING_COURSE_IMAGE) return showCoursePreview(ctx, dbUser.id, payload);
+    if (state.state === ConversationState.WAITING_PRODUCT_IMAGE) { await showProductPreview(ctx, dbUser.id, payload); return true; }
+    if (state.state === ConversationState.WAITING_CATEGORY_IMAGE) { await showCategoryPreview(ctx, dbUser.id, payload); return true; }
+    if (state.state === ConversationState.WAITING_COURSE_IMAGE) { await showCoursePreview(ctx, dbUser.id, payload); return true; }
     return true;
   } catch (e) {
     await replyText(ctx, "⚠️ Не удалось сохранить изображение.");

@@ -1,5 +1,5 @@
 import { Bot } from "grammy";
-import { BotContext } from "../bot/middleware/auth";
+import { BotContext } from "./bot/middleware/auth";
 
 let bot: Bot<BotContext> | null = null;
 

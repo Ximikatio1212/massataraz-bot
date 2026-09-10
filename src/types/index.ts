@@ -1,5 +1,3 @@
-import { InlineKeyboardMarkup, Message } from "grammy";
-
 export interface BotConfig {
   botToken: string;
   adminIds: bigint[];
@@ -66,16 +64,6 @@ export interface OrderItemView {
   price: number;
   quantity: number;
   subtotal: number;
-}
-
-export interface CallbackQueryContext {
-  userId: bigint;
-  username: string | undefined;
-  firstName: string | undefined;
-  lastName: string | undefined;
-  queryId: string;
-  message: Message | undefined;
-  data: string;
 }
 
 export interface SendMessageResult {
