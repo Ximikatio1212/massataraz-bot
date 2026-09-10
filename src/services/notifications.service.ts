@@ -1,4 +1,4 @@
-import { Bot, InlineKeyboard } from "grammy";
+import { Bot, Context, InlineKeyboard } from "grammy";
 import { formatPrice } from "../utils/formatting";
 
 function getAdminIds(): bigint[] {
@@ -17,7 +17,7 @@ function getAdminIds(): bigint[] {
     .filter((x): x is bigint => x !== null);
 }
 
-export async function notifyAdminsNewOrder(bot: Bot, order: any) {
+export async function notifyAdminsNewOrder(bot: Bot<any>, order: any) {
   const adminIds = getAdminIds();
 
   const items = order.items
@@ -63,7 +63,7 @@ export async function notifyAdminsNewOrder(bot: Bot, order: any) {
   }
 }
 
-export async function notifyAdminOrderPaid(bot: Bot, order: any) {
+export async function notifyAdminOrderPaid(bot: Bot<any>, order: any) {
   const adminIds = getAdminIds();
   const text = `✅ Оплата заказа #${order.id} подтверждена. Заказ принят в обработку.`;
 
@@ -74,7 +74,7 @@ export async function notifyAdminOrderPaid(bot: Bot, order: any) {
   }
 }
 
-export async function notifyAdminOrderRejected(bot: Bot, order: any, reason: string) {
+export async function notifyAdminOrderRejected(bot: Bot<any>, order: any, reason: string) {
   const adminIds = getAdminIds();
   const text = `❌ Оплата заказа #${order.id} отклонена.\n\nПричина: ${reason}`;
 
