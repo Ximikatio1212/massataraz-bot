@@ -42,3 +42,30 @@ export async function getCurrentState(userId: number): Promise<ConversationState
   const state = await prisma.userState.findUnique({ where: { userId } });
   return state?.state ?? ConversationState.NONE;
 }
+
+export async function getCanvas(
+  userId: number
+): Promise<{ chatId: bigint; messageId: number } | null> {
+  const state = await prisma.userState.findUnique({
+    where: { userId },
+    select: { canvasChatId: true, canvasMessageId: true },
+  });
+  if (!state?.canvasMessageId || !state.canvasChatId) return null;
+  return { chatId: state.canvasChatId, messageId: state.canvasMessageId };
+}
+
+export async function saveCanvas(userId: number, chatId: bigint, messageId: number) {
+  await prisma.userState.upsert({
+    where: { userId },
+    update: { canvasChatId: chatId, canvasMessageId: messageId, updatedAt: new Date() },
+    create: { userId, canvasChatId: chatId, canvasMessageId: messageId },
+  });
+}
+
+export async function clearCanvas(userId: number) {
+  await prisma.userState.upsert({
+    where: { userId },
+    update: { canvasChatId: null, canvasMessageId: null, updatedAt: new Date() },
+    create: { userId },
+  });
+}

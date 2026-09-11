@@ -87,12 +87,14 @@ model User {
 }
 
 model UserState {
-  id       Int               @id @default(autoincrement())
-  userId   Int               @unique
-  user     User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  state    ConversationState @default(NONE)
-  payload  Json?
-  updatedAt DateTime         @updatedAt
+  id             Int               @id @default(autoincrement())
+  userId         Int               @unique
+  user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  state          ConversationState @default(NONE)
+  payload        Json?
+  canvasChatId   BigInt?
+  canvasMessageId Int?
+  updatedAt      DateTime          @updatedAt
 
   @@index([state])
 }

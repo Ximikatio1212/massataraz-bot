@@ -3,7 +3,7 @@ import { BotContext } from "../middleware/auth";
 import { getProductById } from "../../services/product.service";
 import { addProductToCart } from "../../services/cart.service";
 import { getUserByTelegramId } from "../../services/user.service";
-import { editText, answerAlert } from "../helpers";
+import { renderPhoto, editText, answerAlert } from "../helpers";
 import { formatPrice } from "../../utils/formatting";
 import { userFriendlyError } from "../../utils/errors";
 
@@ -38,14 +38,8 @@ export async function handleProductView(ctx: BotContext, productId: number) {
 
   const photo = resolveImageUrl(product.imageUrl);
   if (photo) {
-    try {
-      await ctx.deleteMessage().catch(() => {});
-      await ctx.replyWithPhoto(photo, { caption: text, parse_mode: "HTML", reply_markup: kb });
-      return;
-    } catch (e) {
-      await editText(ctx, text, kb);
-      return;
-    }
+    await renderPhoto(ctx, photo, text, kb);
+    return;
   }
 
   await editText(ctx, text, kb);
@@ -68,6 +62,8 @@ export async function handleProductAdd(ctx: BotContext, productId: number, quant
   try {
     await addProductToCart(dbUser.id, productId, quantity);
     await answerAlert(ctx, "✅ Товар добавлен в корзину");
+    const msg = ctx.callbackQuery?.message as any;
+    if (msg?.caption != null) await ctx.deleteMessage().catch(() => {});
   } catch (e: any) {
     await answerAlert(ctx, userFriendlyError(e.message ?? "GENERIC"));
   }

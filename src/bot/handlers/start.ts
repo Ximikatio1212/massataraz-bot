@@ -19,11 +19,7 @@ export async function startHandler(ctx: BotContext) {
     ? `🏋️ <b>MASSA TARAZ</b>\n\nЗдравствуйте, администратор! Выберите раздел:`
     : `🏋️ <b>MASSA TARAZ</b>\n\nПривет, ${safeHtml(from.first_name ?? "")}! Выберите раздел:`;
 
-  if (ctx.callbackQuery) {
-    await editText(ctx, greeting, mainMenuKeyboard(isAdmin));
-  } else {
-    await replyText(ctx, greeting, mainMenuKeyboard(isAdmin));
-  }
+  await replyText(ctx, greeting, mainMenuKeyboard(isAdmin));
 }
 
 export async function helpHandler(ctx: BotContext) {

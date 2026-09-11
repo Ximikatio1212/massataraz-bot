@@ -3,7 +3,7 @@ import { BotContext } from "../middleware/auth";
 import { getActiveCourses, getCourseById } from "../../services/course.service";
 import { addCourseToCart } from "../../services/cart.service";
 import { getUserByTelegramId } from "../../services/user.service";
-import { editText, answerAlert } from "../helpers";
+import { renderPhoto, editText, answerAlert } from "../helpers";
 import { formatPrice } from "../../utils/formatting";
 import { userFriendlyError } from "../../utils/errors";
 
@@ -64,14 +64,8 @@ export async function handleCourseView(ctx: BotContext, courseId: number) {
 
   const photo = resolveImageUrl(course.imageUrl);
   if (photo) {
-    try {
-      await ctx.deleteMessage().catch(() => {});
-      await ctx.replyWithPhoto(photo, { caption: text, parse_mode: "HTML", reply_markup: kb });
-      return;
-    } catch (e) {
-      await editText(ctx, text, kb);
-      return;
-    }
+    await renderPhoto(ctx, photo, text, kb);
+    return;
   }
 
   await editText(ctx, text, kb);
@@ -92,6 +86,8 @@ export async function handleCourseAdd(ctx: BotContext, courseId: number, quantit
   try {
     await addCourseToCart(dbUser.id, courseId, quantity);
     await answerAlert(ctx, "✅ Курс добавлен в корзину");
+    const msg = ctx.callbackQuery?.message as any;
+    if (msg?.caption != null) await ctx.deleteMessage().catch(() => {});
   } catch (e: any) {
     await answerAlert(ctx, userFriendlyError(e.message ?? "GENERIC"));
   }
