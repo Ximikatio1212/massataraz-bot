@@ -3,6 +3,12 @@ import { processUpdate } from "../../src/bot/bot";
 import { logError } from "../../src/utils/errors";
 import { markProcessedUpdate, verifyWebhookSecret } from "../../src/services/webhook.service";
 
+// Cold-start warm-up: on Netlify/AWS Lambda the first outbound HTTPS from a new
+// container may fail with "Network request failed" (DNS/TLS not yet primed).
+// Fire a lightweight request at module load so the network stack is ready before
+// the first webhook arrives.  Fire-and-forget — errors are harmless.
+const _warmup = fetch("https://api.telegram.org/").catch(() => {});
+
 const PROCESS_TIMEOUT_MS = 25_000;
 
 function withTimeout(promise: Promise<void>, ms: number): Promise<"ok" | "timeout"> {
@@ -89,11 +95,24 @@ export const handler: Handler = async (event) => {
     const outcome = await withTimeout(processUpdate(update), PROCESS_TIMEOUT_MS);
     console.log("WH done", uid, outcome);
   } catch (e) {
-    console.log("WH error", uid, String((e as any)?.message ?? e));
-    logError("telegram-webhook", e, {
-      updateId: uid,
-    });
-    await notifyAdminError(e, uid);
+    const errMsg = String((e as any)?.message ?? (e as any)?.error?.message ?? e);
+    console.log("WH error", uid, errMsg);
+
+    if (errMsg.includes("Network request") || errMsg.includes("ENOTFOUND")) {
+      console.log("WH retry", uid);
+      await new Promise((r) => setTimeout(r, 2000));
+      try {
+        const retry = await withTimeout(processUpdate(update), PROCESS_TIMEOUT_MS);
+        console.log("WH done-retry", uid, retry);
+      } catch (e2) {
+        console.log("WH retry-failed", uid, String((e2 as any)?.message ?? e2));
+        logError("telegram-webhook", e2, { updateId: uid });
+        await notifyAdminError(e2, uid);
+      }
+    } else {
+      logError("telegram-webhook", e, { updateId: uid });
+      await notifyAdminError(e, uid);
+    }
   }
 
   // Always respond 200; Telegram will retry otherwise.

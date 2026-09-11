@@ -71,6 +71,7 @@ export function createBot(): Bot<BotContext> {
 
   bot.catch((err) => {
     console.error("Bot error:", err.error);
+    throw err;
   });
 
   return bot;
