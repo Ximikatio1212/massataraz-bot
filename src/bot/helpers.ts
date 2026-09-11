@@ -45,6 +45,21 @@ export async function answerAlert(ctx: BotContext, text: string) {
   } catch (e) {}
 }
 
+export async function editHostMessage(ctx: BotContext, messageId: number | undefined, text: string, keyboard?: InlineKeyboard) {
+  const opts: any = { parse_mode: "HTML" };
+  if (keyboard) opts.reply_markup = keyboard;
+  const chatId = ctx.chat?.id;
+  if (chatId && messageId) {
+    try {
+      await ctx.api.editMessageText(chatId, messageId, text, opts);
+      return;
+    } catch (e) {
+      // fall through to signature edit
+    }
+  }
+  await editText(ctx, text, keyboard);
+}
+
 export function safeText(text: string): string {
   return text
     .replace(/&/g, "&amp;")

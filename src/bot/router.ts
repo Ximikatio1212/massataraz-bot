@@ -16,6 +16,8 @@ import {
   handleCheckoutConfirm,
   handleCheckoutCancel,
   handleCheckoutEdit,
+  handleCheckoutReceipt,
+  handleCheckoutData,
 } from "./handlers/checkout";
 import { handleOrdersList, handleOrderView } from "./handlers/orders";
 import {
@@ -66,6 +68,9 @@ import {
   handleAdminProductToggle,
   handleAdminCategoryToggle,
   handleAdminCourseToggle,
+  handleAdminProductDelete,
+  handleAdminCategoryDelete,
+  handleAdminCourseDelete,
   handleAdminRemoveCourseItem,
   handleCancelCurrent,
 } from "./handlers/admin";
@@ -121,6 +126,8 @@ export async function handleCallback(ctx: BotContext, data: string) {
       if (parts[1] === "confirm") return handleCheckoutConfirm(ctx);
       if (parts[1] === "cancel") return handleCheckoutCancel(ctx);
       if (parts[1] === "edit") return handleCheckoutEdit(ctx);
+      if (parts[1] === "receipt") return handleCheckoutReceipt(ctx);
+      if (parts[1] === "data") return handleCheckoutData(ctx);
       break;
 
     case "order":
@@ -196,6 +203,11 @@ async function handleAdminCallback(ctx: BotContext, parts: string[]) {
       if (action === "view") return handleAdminProductView(ctx, Number(parts[3]));
       if (action === "toggle") return handleAdminProductToggle(ctx, Number(parts[3]));
       if (action === "edit") return handleAdminProductEdit(ctx, parts[3], Number(parts[4]));
+      if (action === "delete") {
+        if (parts[3] === "yes") return handleAdminProductDelete(ctx, Number(parts[4]), true);
+        if (parts[3] === "no") return handleAdminProductView(ctx, Number(parts[4]));
+        return handleAdminProductDelete(ctx, Number(parts[3]));
+      }
       break;
     }
 
@@ -212,6 +224,11 @@ async function handleAdminCallback(ctx: BotContext, parts: string[]) {
       if (action === "view") return handleAdminCategoryView(ctx, Number(parts[3]));
       if (action === "toggle") return handleAdminCategoryToggle(ctx, Number(parts[3]));
       if (action === "edit") return handleAdminCategoryEdit(ctx, parts[3], Number(parts[4]));
+      if (action === "delete") {
+        if (parts[3] === "yes") return handleAdminCategoryDelete(ctx, Number(parts[4]), true);
+        if (parts[3] === "no") return handleAdminCategoryView(ctx, Number(parts[4]));
+        return handleAdminCategoryDelete(ctx, Number(parts[3]));
+      }
       break;
     }
 
@@ -231,6 +248,11 @@ async function handleAdminCallback(ctx: BotContext, parts: string[]) {
       if (action === "view") return handleAdminCourseView(ctx, Number(parts[3]));
       if (action === "toggle") return handleAdminCourseToggle(ctx, Number(parts[3]));
       if (action === "edit") return handleAdminCourseEdit(ctx, parts[3], Number(parts[4]));
+      if (action === "delete") {
+        if (parts[3] === "yes") return handleAdminCourseDelete(ctx, Number(parts[4]), true);
+        if (parts[3] === "no") return handleAdminCourseView(ctx, Number(parts[4]));
+        return handleAdminCourseDelete(ctx, Number(parts[3]));
+      }
       if (action === "items") {
         if (parts[3] === "add") return handleAdminCourseItemsAdd(ctx, Number(parts[4]));
         if (parts[3] === "list") return handleAdminCourseItemsList(ctx, Number(parts[4]));

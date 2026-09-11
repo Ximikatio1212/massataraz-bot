@@ -100,6 +100,24 @@ export async function getCourseItems(courseId: number) {
   });
 }
 
+export async function courseInOrders(id: number): Promise<boolean> {
+  const count = await prisma.orderItem.count({ where: { courseId: id } });
+  return count > 0;
+}
+
+export async function deleteCourse(id: number): Promise<{ ok: boolean; error?: string }> {
+  if (await courseInOrders(id)) return { ok: false, error: "COURSE_IN_ORDERS" };
+  try {
+    await prisma.$transaction([
+      prisma.cartItem.deleteMany({ where: { courseId: id } }),
+      prisma.course.delete({ where: { id } }),
+    ]);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: "UPDATE_FAILED" };
+  }
+}
+
 export async function courseIsAvailable(courseId: number): Promise<boolean> {
   const course = await prisma.course.findUnique({
     where: { id: courseId },

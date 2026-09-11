@@ -61,6 +61,17 @@ export async function deleteCategorySoft(id: number) {
   });
 }
 
+export async function deleteCategoryHard(id: number): Promise<{ ok: boolean; error?: string }> {
+  const hasProducts = await categoryHasProducts(id);
+  if (hasProducts) return { ok: false, error: "CATEGORY_HAS_PRODUCTS" };
+  try {
+    await prisma.category.delete({ where: { id } });
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "UPDATE_FAILED" };
+  }
+}
+
 export async function categoryHasProducts(id: number): Promise<boolean> {
   const count = await prisma.product.count({ where: { categoryId: id } });
   return count > 0;

@@ -5,7 +5,7 @@ import { getOrderById, updateOrder, completeReceiptSubmission } from "../../serv
 import { createPaymentRecord } from "../../services/payment.service";
 import { validateFileForReceipt } from "../../services/storage.service";
 import { notifyAdminsNewOrder } from "../../services/notifications.service";
-import { replyText } from "../helpers";
+import { editHostMessage, replyText } from "../helpers";
 import { userFriendlyError } from "../../utils/errors";
 import { ConversationState } from "@prisma/client";
 import { getBot } from "../../instance";
@@ -21,11 +21,12 @@ export async function processReceiptMessage(ctx: BotContext): Promise<boolean> {
 
   const payload: any = state.payload ?? {};
   const orderId = Number(payload.orderId);
+  const hostMessageId = payload.hostMessageId ?? ctx.message?.message_id ?? undefined;
 
   const order = await getOrderById(orderId);
   if (!order || order.userId !== dbUser.id) {
     await resetState(dbUser.id);
-    await replyText(ctx, "❌ Заказ не найден. Оформите заказ заново.");
+    await editHostMessage(ctx, hostMessageId, "❌ Заказ не найден. Оформите заказ заново.");
     return true;
   }
 
@@ -49,12 +50,12 @@ export async function processReceiptMessage(ctx: BotContext): Promise<boolean> {
       fileName = `${fileName}.${mimeType === "application/pdf" ? "pdf" : "img"}`;
     }
   } else {
-    await replyText(ctx, "📎 Отправьте чек об оплате (фото или документ).");
+    await editHostMessage(ctx, hostMessageId, "📎 Отправьте чек об оплате (фото или документ).");
     return true;
   }
 
   if (!fileId) {
-    await replyText(ctx, "❌ Не удалось получить файл. Попробуйте ещё раз.");
+    await editHostMessage(ctx, hostMessageId, "❌ Не удалось получить файл. Попробуйте ещё раз.");
     return true;
   }
 
@@ -64,13 +65,13 @@ export async function processReceiptMessage(ctx: BotContext): Promise<boolean> {
     const file = await getBot().api.getFile(fileId);
     fileSize = file.file_size ?? 0;
   } catch (e) {
-    await replyText(ctx, "❌ Не удалось получить файл из Telegram.");
+    await editHostMessage(ctx, hostMessageId, "❌ Не удалось получить файл из Telegram.");
     return true;
   }
 
   const validation = validateFileForReceipt(mimeType, fileName, fileSize);
   if (!validation.ok) {
-    await replyText(ctx, userFriendlyError(validation.error));
+    await editHostMessage(ctx, hostMessageId, userFriendlyError(validation.error));
     return true;
   }
 
@@ -84,11 +85,27 @@ export async function processReceiptMessage(ctx: BotContext): Promise<boolean> {
 
     await createPaymentRecord(order.id, dbUser.id, Number(order.total), undefined, fileName, fileId, mimeType);
 
-    const updatedOrder = await getOrderById(order.id);
-    await completeReceiptSubmission(order.id);
+    // If delivery data has not been entered yet, keep the order open for data entry
+    if (!order.fullName || !order.phone) {
+      await setState(dbUser.id, ConversationState.WAITING_ORDER_NAME, {
+        orderId: order.id,
+        hostChatId: Number(ctx.chat?.id),
+        hostMessageId,
+      });
+      await editHostMessage(
+        ctx,
+        hostMessageId,
+        `✅ <b>Чек получен.</b>\n\nЗаказ №${order.id} забронирован.\n\n📝 Теперь введите <b>ФИО</b> для доставки:`
+      );
+      return true;
+    }
 
-    await replyText(
+    await completeReceiptSubmission(order.id);
+    const updatedOrder = await getOrderById(order.id);
+
+    await editHostMessage(
       ctx,
+      hostMessageId,
       `✅ <b>Чек получен.</b>\n\nВаш заказ №${order.id} отправлен на проверку.`
     );
 
@@ -96,7 +113,7 @@ export async function processReceiptMessage(ctx: BotContext): Promise<boolean> {
     return true;
   } catch (e: any) {
     console.error("Receipt upload failed", e);
-    await replyText(ctx, "⚠️ Не удалось сохранить чек. Попробуйте позже.");
+    await editHostMessage(ctx, hostMessageId, "⚠️ Не удалось сохранить чек. Попробуйте позже.");
     return true;
   }
 }

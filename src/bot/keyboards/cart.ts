@@ -38,3 +38,12 @@ export function cartConfirmKeyboard() {
     .row()
     .text("❌ Отмена", "checkout:cancel");
 }
+
+export function checkoutStartKeyboard() {
+  return new InlineKeyboard()
+    .text("📎 Прикрепить чек", "checkout:receipt")
+    .row()
+    .text("📝 Заполнить данные", "checkout:data")
+    .row()
+    .text("❌ Отмена", "checkout:cancel");
+}

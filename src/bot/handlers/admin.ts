@@ -24,6 +24,7 @@ import {
   createProduct,
   updateProduct,
   toggleProductActive,
+  deleteProduct,
 } from "../../services/product.service";
 import {
   getActiveCategories,
@@ -32,6 +33,7 @@ import {
   updateCategory,
   toggleCategoryActive,
   getAllCategories,
+  deleteCategoryHard,
 } from "../../services/category.service";
 import {
   getAllCourses,
@@ -41,6 +43,7 @@ import {
   toggleCourseActive,
   addCourseItem,
   removeCourseItem,
+  deleteCourse,
 } from "../../services/course.service";
 import { getAllOrders, getOrderById, changeOrderStatus, confirmOrderPayment, rejectOrderPayment } from "../../services/order.service";
 import { getPaymentsByStatus } from "../../services/payment.service";
@@ -231,6 +234,66 @@ export async function handleAdminCourseToggle(ctx: BotContext, id: number) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Delete objects                                                      */
+/* ------------------------------------------------------------------ */
+
+async function deleteObjectConfirm(ctx: BotContext, kind: "product" | "category" | "course", id: number) {
+  if (!isAdminUser(ctx)) return;
+  let name = "";
+  if (kind === "product") {
+    const p = await getProductById(id);
+    if (!p) return answerAlert(ctx, "❌ Товар не найден.");
+    name = p.name;
+  } else if (kind === "category") {
+    const c = await getCategoryById(id);
+    if (!c) return answerAlert(ctx, "❌ Категория не найдена.");
+    name = c.name;
+  } else if (kind === "course") {
+    const c = await getCourseById(id);
+    if (!c) return answerAlert(ctx, "❌ Курс не найден.");
+    name = c.name;
+  }
+
+  const kb = new InlineKeyboard()
+    .text("🗑 Да, удалить", `admin:${kind}:delete:yes:${id}`)
+    .row()
+    .text("❌ Отмена", `admin:${kind}:delete:no:${id}`);
+  await editText(ctx, `⚠️ <b>УДАЛЕНИЕ</b>\n\nВы действительно хотите удалить «${name}»?\n\nЭто действие необратимо.`, kb);
+}
+
+async function deleteObjectExecute(ctx: BotContext, kind: "product" | "category" | "course", id: number) {
+  if (!isAdminUser(ctx)) return;
+  let result: { ok: boolean; error?: string };
+  if (kind === "product") {
+    result = await deleteProduct(id);
+  } else if (kind === "category") {
+    result = await deleteCategoryHard(id);
+  } else {
+    result = await deleteCourse(id);
+  }
+  if (!result.ok) {
+    return answerAlert(ctx, userFriendlyError(result.error ?? "UPDATE_FAILED"));
+  }
+  await editText(ctx, `🗑 <b>Удалено.</b>`);
+  if (kind === "product") return handleAdminProductList(ctx, 0);
+  if (kind === "category") return handleAdminCategoryList(ctx, 0);
+  return handleAdminCourseList(ctx, 0);
+}
+
+export async function handleAdminProductDelete(ctx: BotContext, id: number, yes?: boolean) {
+  if (yes === true) return deleteObjectExecute(ctx, "product", id);
+  return deleteObjectConfirm(ctx, "product", id);
+}
+export async function handleAdminCategoryDelete(ctx: BotContext, id: number, yes?: boolean) {
+  if (yes === true) return deleteObjectExecute(ctx, "category", id);
+  return deleteObjectConfirm(ctx, "category", id);
+}
+export async function handleAdminCourseDelete(ctx: BotContext, id: number, yes?: boolean) {
+  if (yes === true) return deleteObjectExecute(ctx, "course", id);
+  return deleteObjectConfirm(ctx, "course", id);
+}
+
+/* ------------------------------------------------------------------ */
 /* Lists                                                               */
 /* ------------------------------------------------------------------ */
 
@@ -346,6 +409,8 @@ export async function handleAdminProductView(ctx: BotContext, productId: number)
     .row()
     .text(product.isActive ? "🔴 Скрыть товар" : "🟢 Показать товар", `admin:product:toggle:${product.id}`)
     .row()
+    .text("🗑 Удалить товар", `admin:product:delete:${product.id}`)
+    .row()
     .text("⬅️ Назад", "admin:products");
 
   await editText(ctx, text, kb);
@@ -371,6 +436,8 @@ export async function handleAdminCategoryView(ctx: BotContext, categoryId: numbe
     .text("✏️ Редактировать", `admin:category:edit:name:${category.id}`)
     .row()
     .text(category.isActive ? "🔴 Скрыть категорию" : "🟢 Показать категорию", `admin:category:toggle:${category.id}`)
+    .row()
+    .text("🗑 Удалить категорию", `admin:category:delete:${category.id}`)
     .row()
     .text("⬅️ Назад", "admin:categories");
   await editText(ctx, text, kb);
@@ -406,6 +473,8 @@ export async function handleAdminCourseView(ctx: BotContext, courseId: number) {
     .text("➕ Добавить товар", `admin:course:items:add:${course.id}`)
     .row()
     .text("📋 Состав курса", `admin:course:items:list:${course.id}`)
+    .row()
+    .text("🗑 Удалить курс", `admin:course:delete:${course.id}`)
     .row()
     .text("⬅️ Назад", "admin:courses");
 

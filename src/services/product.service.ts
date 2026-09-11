@@ -86,3 +86,24 @@ export async function getLowStockProducts(threshold = 5) {
     orderBy: { stock: "asc" },
   });
 }
+
+export async function productInCourses(id: number): Promise<boolean> {
+  const count = await prisma.courseItem.count({ where: { productId: id } });
+  return count > 0;
+}
+
+export async function productInOrders(id: number): Promise<boolean> {
+  const count = await prisma.orderItem.count({ where: { productId: id } });
+  return count > 0;
+}
+
+export async function deleteProduct(id: number): Promise<{ ok: boolean; error?: string }> {
+  if (await productInCourses(id)) return { ok: false, error: "PRODUCT_IN_COURSE" };
+  if (await productInOrders(id)) return { ok: false, error: "PRODUCT_IN_ORDERS" };
+  try {
+    await prisma.product.delete({ where: { id } });
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: "UPDATE_FAILED" };
+  }
+}
