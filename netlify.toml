@@ -12,6 +12,9 @@
   node_bundler = "esbuild"
   included_files = ["node_modules/.prisma/**"]
 
+[functions."telegram-webhook"]
+  timeout = 26
+
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"
