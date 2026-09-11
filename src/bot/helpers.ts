@@ -52,8 +52,11 @@ export async function renderText(ctx: BotContext, text: string, keyboard?: Inlin
     const edited = await ctx.api
       .editMessageText(chatId, canvasId, text, opts)
       .then(() => true)
-      .catch(() => false);
-    if (edited) return;
+      .catch((e) => {
+        console.log("RENDER edit-fail", String(e));
+        return false;
+      });
+    if (edited) { console.log("RENDER edited"); return; }
     if (currentId === canvasId) return;
 
     // Canvas was deleted by the user: fall through to recreate it.
@@ -82,9 +85,14 @@ export async function renderText(ctx: BotContext, text: string, keyboard?: Inlin
     await ctx.deleteMessage().catch(() => {});
   }
 
-  const sent = await ctx.reply(text, opts).catch(() => null);
+  const sent = await ctx.reply(text, opts).catch((e) => {
+    console.log("RENDER reply-fail", String(e));
+    return null;
+  });
+  console.log("RENDER sent", sent ? String(sent.message_id) : "-");
   if (sent && dbUser) {
     await saveCanvas(dbUser.id, BigInt(chatId), sent.message_id);
+    console.log("RENDER canvas-set", String(sent.message_id));
   }
 }
 
