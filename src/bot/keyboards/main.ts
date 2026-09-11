@@ -4,8 +4,7 @@ import { t } from "../../i18n";
 export function mainMenuKeyboard(isAdmin: boolean, lang?: string) {
   const kb = new InlineKeyboard();
 
-  kb.row()
-    .text(t(lang, "btn_catalog"), "catalog:start")
+  kb.text(t(lang, "btn_catalog"), "catalog:start")
     .text(t(lang, "btn_courses"), "courses:list")
     .row()
     .text(t(lang, "btn_cart"), "cart:view")
