@@ -6,14 +6,16 @@ import { prisma } from "../db/prisma";
 
 interface Provider {
   baseUrl: string;
+  chatPath: string;
   apiKey: string;
   model: string;
 }
 
-const PROVIDERS: Record<string, { baseUrl: string; defaultModel: string }> = {
+const PROVIDERS: Record<string, { baseUrl: string; defaultModel: string; chatPath?: string }> = {
   gemini: {
     baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
     defaultModel: "gemini-3.5-flash",
+    chatPath: "/chat/completions",
   },
   mistral: {
     baseUrl: "https://api.mistral.ai",
@@ -35,7 +37,7 @@ function providerConfig(): Provider | null {
   const apiKey = process.env.AI_API_KEY;
   if (!apiKey) return null;
   const model = process.env.AI_MODEL || p.defaultModel;
-  return { baseUrl: p.baseUrl, apiKey, model };
+  return { baseUrl: p.baseUrl, chatPath: p.chatPath ?? "/v1/chat/completions", apiKey, model };
 }
 
 export function aiEnabled(): boolean {
@@ -306,7 +308,7 @@ export async function handleAiChat(
   while (safety++ < 6) {
     let res: any;
     try {
-      res = await fetch(`${cfg.baseUrl}/v1/chat/completions`, {
+      res = await fetch(`${cfg.baseUrl}${cfg.chatPath}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
