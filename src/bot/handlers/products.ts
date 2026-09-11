@@ -36,7 +36,25 @@ export async function handleProductView(ctx: BotContext, productId: number) {
       : `❌ Товара сейчас нет в наличии`,
   ].join("\n");
 
+  const photo = resolveImageUrl(product.imageUrl);
+  if (photo) {
+    try {
+      await ctx.deleteMessage().catch(() => {});
+      await ctx.replyWithPhoto(photo, { caption: text, parse_mode: "HTML", reply_markup: kb });
+      return;
+    } catch (e) {
+      await editText(ctx, text, kb);
+      return;
+    }
+  }
+
   await editText(ctx, text, kb);
+}
+
+function resolveImageUrl(imageUrl: string | null | undefined): string | null {
+  if (!imageUrl) return null;
+  if (imageUrl.startsWith("tg:")) return imageUrl.slice(3);
+  return imageUrl;
 }
 
 export async function handleProductAdd(ctx: BotContext, productId: number, quantity = 1) {

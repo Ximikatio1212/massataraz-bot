@@ -29,7 +29,7 @@ export async function startHandler(ctx: BotContext) {
 export async function helpHandler(ctx: BotContext) {
   await replyText(
     ctx,
-    `🏋️ <b>Massa Taraz</b>\n\nМагазин спортивного питания.\n\nИспользуйте меню для покупок. По всем вопросам — напишите нам.`
+    `🏋️ <b>Massa Taraz</b>\n\nМагазин спортивного питания.\n\nИспользуйте меню для покупок. По всем вопросам — напишите нам @massataraz08.`
   );
 }
 

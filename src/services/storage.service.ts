@@ -58,8 +58,10 @@ export async function uploadFile(
     "Content-Type": contentType,
   });
 
-  const endpoint = process.env.STORAGE_ENDPOINT?.replace(/\/$/, "") ?? "";
-  const url = `${endpoint}/${bucket}/${key}`;
+  const publicEndpoint = process.env.STORAGE_PUBLIC_ENDPOINT?.replace(/\/$/, "");
+  const url = publicEndpoint
+    ? `${publicEndpoint}/${key}`
+    : `${process.env.STORAGE_ENDPOINT?.replace(/\/$/, "") ?? ""}/${bucket}/${key}`;
   return { url, key };
 }
 
@@ -74,8 +76,9 @@ export async function deleteFile(key: string): Promise<void> {
 }
 
 export function getPublicUrl(key: string): string {
-  const endpoint = process.env.STORAGE_ENDPOINT?.replace(/\/$/, "") ?? "";
-  return `${endpoint}/${getBucket()}/${key}`;
+  const publicEndpoint = process.env.STORAGE_PUBLIC_ENDPOINT?.replace(/\/$/, "");
+  if (publicEndpoint) return `${publicEndpoint}/${key}`;
+  return `${process.env.STORAGE_ENDPOINT?.replace(/\/$/, "") ?? ""}/${getBucket()}/${key}`;
 }
 
 const ALLOWED_MIME_TYPES = new Set([

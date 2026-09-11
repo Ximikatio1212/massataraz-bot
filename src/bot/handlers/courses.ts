@@ -62,7 +62,25 @@ export async function handleCourseView(ctx: BotContext, courseId: number) {
     `💰 Цена курса: ${formatPrice(Number(course.price))}`,
   ].join("\n");
 
+  const photo = resolveImageUrl(course.imageUrl);
+  if (photo) {
+    try {
+      await ctx.deleteMessage().catch(() => {});
+      await ctx.replyWithPhoto(photo, { caption: text, parse_mode: "HTML", reply_markup: kb });
+      return;
+    } catch (e) {
+      await editText(ctx, text, kb);
+      return;
+    }
+  }
+
   await editText(ctx, text, kb);
+}
+
+function resolveImageUrl(imageUrl: string | null | undefined): string | null {
+  if (!imageUrl) return null;
+  if (imageUrl.startsWith("tg:")) return imageUrl.slice(3);
+  return imageUrl;
 }
 
 export async function handleCourseAdd(ctx: BotContext, courseId: number, quantity = 1) {
