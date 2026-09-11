@@ -5,6 +5,23 @@ import { startHandler, helpHandler } from "./handlers/start";
 import { setBotInstance } from "../instance";
 import { mark } from "../utils/diag";
 
+// Только эти методы могут уйти в webhook reply (первый вызов апдейта). Всё
+// остальное — исходящие вызовы, которые на cmh падают, но не ломают reply.
+const WEBHOOK_REPLY_METHODS = new Set([
+  "sendMessage",
+  "sendPhoto",
+  "sendDocument",
+  "sendVideo",
+  "sendAnimation",
+  "sendAudio",
+  "sendVoice",
+  "sendSticker",
+  "sendMediaGroup",
+  "editMessageText",
+  "editMessageCaption",
+  "editMessageMedia",
+]);
+
 export function createBot(): Bot<BotContext> {
   const token = process.env.BOT_TOKEN;
   if (!token) throw new Error("BOT_TOKEN is not set");
@@ -33,9 +50,14 @@ export function createBot(): Bot<BotContext> {
       // Отвечаем на апдейт в том же HTTP-ответе webhook-запроса (webhook reply),
       // чтобы не полагаться на исходящее HTTPS-соединение Lambda к
       // api.telegram.org, которое на контейнерах AWS (us-east-2 cmh) падает.
-      // answerCallbackQuery исключаем, чтобы первый API-вызов (рендер меню)
-      // всегда отвечался в webhook-reply.
-      canUseWebhookReply: (method) => method !== "answerCallbackQuery",
+      //
+      // ВАЖНО: grammY передаёт в webhook reply ТОЛЬКО ПЕРВЫЙ подходящий вызов
+      // за апдейт, все последующие идут в исходящее соединение и на cmh молча
+      // падают. Поэтому разрешаем webhook reply только «отображающим» методам.
+      // Остальные (deleteMessage, getFile, answerCallbackQuery и т.п.) уходят в
+      // исходящий вызов и безвредно падают, НЕ сжигая при этом драгоценный
+      // первый вызов, который обязан достаться реальному рендеру сообщения.
+      canUseWebhookReply: (method) => WEBHOOK_REPLY_METHODS.has(method),
     },
   });
   setBotInstance(bot);

@@ -39,55 +39,43 @@ export async function renderText(ctx: BotContext, text: string, keyboard?: Inlin
 
   const dbUser = await currentDbUser(ctx);
   const canvas = dbUser ? await getCanvas(dbUser.id) : null;
-  console.log("RENDER", String(chatId), "len", text.length, "canvas", canvas ? String(canvas.messageId) : "-", "start-msg", ctx.message?.message_id ?? null, "cb", ctx.callbackQuery?.message?.message_id ?? null);
-  mark(`render:${String(chatId)} len=${text.length} canvas=${canvas ? String(canvas.messageId) : "-"}`);
-
   const currentId = ctx.callbackQuery?.message?.message_id;
   const currentChatId = ctx.callbackQuery?.message?.chat?.id;
+  console.log("RENDER", String(chatId), "len", text.length, "canvas", canvas ? String(canvas.messageId) : "-", "start-msg", ctx.message?.message_id ?? null, "cb", currentId ?? null);
+  mark(`render:${String(chatId)} len=${text.length} canvas=${canvas ? String(canvas.messageId) : "-"}`);
 
-  if (canvas && canvas.chatId === BigInt(chatId)) {
-    const canvasId = Number(canvas.messageId);
-    // Remove the message that triggered the callback if it is a disposable media screen.
-    if (currentChatId === chatId && currentId != null && currentId !== canvasId) {
-      await ctx.deleteMessage().catch(() => {});
-    }
+  const canvasId = canvas && canvas.chatId === BigInt(chatId) ? Number(canvas.messageId) : null;
+
+  if (currentChatId === chatId && currentId != null) {
+    // Callback: нажатое сообщение гарантированно существует. Редактируем ЕГО —
+    // это безопасный первый вызов для webhook reply. Удаление иного сообщения
+    // НИКОГДА не делаем первым: на cmh оно съело бы webhook reply, а сам рендер
+    // ушёл бы в исходящий вызов и молча пропал.
     const edited = await ctx.api
-      .editMessageText(chatId, canvasId, text, opts)
-      .then(() => true)
-      .catch((e) => {
-        console.log("RENDER edit-fail", String(e));
-        mark(`render:edit-fail ${String(e).slice(0, 120)}`);
-        return false;
-      });
-    if (edited) { console.log("RENDER edited"); mark("render:edited"); return; }
-    if (currentId === canvasId) return;
-
-    // Canvas was deleted by the user: fall through to recreate it.
-    if (currentChatId === chatId && currentId != null) {
-      const reused = await ctx.api
-        .editMessageText(chatId, currentId, text, opts)
-        .then(() => true)
-        .catch(() => false);
-      if (reused) {
-        await saveCanvas(dbUser!.id, BigInt(chatId), currentId);
-        return;
-      }
-      await ctx.deleteMessage().catch(() => {});
-    }
-  } else if (currentChatId === chatId && currentId != null) {
-    // No canvas yet: reuse the pressed message if possible (e.g. it is a text menu).
-    const reused = await ctx.api
       .editMessageText(chatId, currentId, text, opts)
       .then(() => true)
-      .catch(() => false);
-    if (reused) {
+      .catch((e) => {
+        console.log("RENDER reuse-fail", String(e));
+        mark(`render:reuse-fail ${String(e).slice(0, 120)}`);
+        return false;
+      });
+    if (edited) {
       if (dbUser) await saveCanvas(dbUser.id, BigInt(chatId), currentId);
+      // Best-effort: убрать старый canvas после успешного рендера (на cmh это
+      // исходящий вызов и он безвредно падает; локально — чистит чат).
+      if (canvasId != null && canvasId !== currentId) {
+        await ctx.api.deleteMessage(chatId, canvasId).catch(() => {});
+      }
+      console.log("RENDER reused", currentId);
+      mark("render:reused");
       return;
     }
-    // Pressed message is not editable (photo): remove it to keep the chat clean.
-    await ctx.deleteMessage().catch(() => {});
+    // Нажатое сообщение не редактируется (медиа): идём в отправку нового.
   }
 
+  // Текст/фото/документ без нажатой кнопки, либо нередактируемое нажатие:
+  // ОТПРАВЛЯЕМ НОВОЕ СООБЩЕНИЕ первым вызовом. Устаревший canvas никогда не
+  // редактируем, иначе первый (webhook-reply) вызов уйдёт в молчаливый сбой.
   const sent = await ctx.reply(text, opts).catch((e) => {
     console.log("RENDER reply-fail", String(e));
     mark(`render:reply-fail ${String(e).slice(0, 120)}`);
@@ -95,9 +83,15 @@ export async function renderText(ctx: BotContext, text: string, keyboard?: Inlin
   });
   console.log("RENDER sent", sent ? String(sent.message_id) : "-");
   mark(`render:sent=${sent ? String(sent.message_id) : "-"}`);
-  if (sent && dbUser) {
-    await saveCanvas(dbUser.id, BigInt(chatId), sent.message_id);
-    console.log("RENDER canvas-set", String(sent.message_id));
+  if (sent) {
+    if (dbUser) {
+      await saveCanvas(dbUser.id, BigInt(chatId), sent.message_id);
+      console.log("RENDER canvas-set", String(sent.message_id));
+    }
+    // Best-effort: убрать старый canvas после успешной отправки нового.
+    if (canvasId != null && sent.message_id !== canvasId) {
+      await ctx.api.deleteMessage(chatId, canvasId).catch(() => {});
+    }
   }
 }
 
@@ -115,21 +109,16 @@ export async function renderMedia(
 
   const dbUser = await currentDbUser(ctx);
   const canvas = dbUser ? await getCanvas(dbUser.id) : null;
-
   const currentId = ctx.callbackQuery?.message?.message_id;
-  // Remove a previous disposable media screen when navigating media -> media,
-  // so the canvas stays as the only stable message.
-  if (canvas && currentId != null && currentId !== Number(canvas.messageId)) {
-    await ctx.deleteMessage().catch(() => {});
-  }
 
+  // Сама отправка — ПЕРВЫЙ вызов (webhook reply). Никаких deleteMessage до неё:
+  // на cmh удаление съело бы reply, а медиа ушло бы в исходящий вызов и пропало.
   const sent = await send().catch(() => null);
   if (!sent) return;
 
-  if (canvas) {
-    // A text canvas stays as the only stable menu; media is disposable.
-    // If the previous current message was the previous media screen it was
-    // already removed above.
+  // Best-effort: подчистить предыдущее disposable-медиа/старый canvas ПОСЛЕ.
+  if (canvas && currentId != null && currentId !== Number(canvas.messageId)) {
+    await ctx.api.deleteMessage(chatId, Number(canvas.messageId)).catch(() => {});
   }
 }
 

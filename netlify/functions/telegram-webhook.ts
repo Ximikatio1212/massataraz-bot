@@ -4,6 +4,38 @@ import { logError } from "../../src/utils/errors";
 import { markProcessedUpdate, verifyWebhookSecret } from "../../src/services/webhook.service";
 import { diag, mark, resetDiag } from "../../src/utils/diag";
 
+// Журнал обработки апдейта пишется в БД (Neon), т.к. логи Netlify Functions
+// на регионе cmh недоступны, а ответ webhook-запроса видит только Telegram.
+async function persistDiag(record: {
+  updateId: number;
+  chatId?: number;
+  fromId?: number;
+  reply: boolean;
+  replyMethod?: string | null;
+  noReplyReason: string;
+  error?: string | null;
+}) {
+  try {
+    const { prisma } = await import("../../src/db/prisma");
+    await prisma.webhookDiag
+      .create({
+        data: {
+          updateId: BigInt(record.updateId),
+          chatId: record.chatId != null ? BigInt(record.chatId) : null,
+          fromId: record.fromId != null ? BigInt(record.fromId) : null,
+          reply: record.reply,
+          replyMethod: record.replyMethod ?? null,
+          noReplyReason: record.noReplyReason,
+          diag: JSON.stringify(diag),
+          error: record.error ?? null,
+        },
+      })
+      .catch(() => {});
+  } catch {
+    // Диагностика не должна ронять обработку апдейта
+  }
+}
+
 // Cold-start warm-up: on Netlify/AWS Lambda the first outbound HTTPS from a new
 // container may fail with "Network request failed" (DNS/TLS not yet primed).
 // Fire a lightweight request at module load so the network stack is ready before
@@ -127,11 +159,37 @@ export const handler: Handler = async (event) => {
   }
 
   let noReplyReason = "none";
+  let errorMsg: string | null = null;
+  let replyMethod: string | null = null;
+
+  const chatId = Number(
+    update?.callback_query?.message?.chat?.id ?? update?.message?.chat?.id ?? update?.edited_message?.chat?.id ?? NaN
+  );
+  const fromId = Number(
+    update?.callback_query?.from?.id ?? update?.message?.from?.id ?? update?.edited_message?.from?.id ?? NaN
+  );
+
+  const persist = (reply: boolean) =>
+    persistDiag({
+      updateId: update?.update_id as number,
+      chatId: Number.isFinite(chatId) ? chatId : undefined,
+      fromId: Number.isFinite(fromId) ? fromId : undefined,
+      reply,
+      replyMethod,
+      noReplyReason,
+      error: errorMsg,
+    });
+
   try {
     const replyBody = await runWithReply();
     if (replyBody) {
       // Тело — готовый JSON-запрос к Bot API: Telegram сам отправит сообщение.
+      try {
+        replyMethod = (JSON.parse(replyBody) as any)?.method ?? null;
+      } catch {}
+  
       mark(`wh:return reply`);
+      await persist(true);
       return {
         statusCode: 200,
         headers: { "Content-Type": "application/json" },
@@ -151,7 +209,12 @@ export const handler: Handler = async (event) => {
       try {
         const retryReply = await runWithReply();
         if (retryReply) {
+          try {
+            replyMethod = (JSON.parse(retryReply) as any)?.method ?? null;
+          } catch {}
+
           mark(`wh:return reply(retry)`);
+          await persist(true);
           return {
             statusCode: 200,
             headers: { "Content-Type": "application/json" },
@@ -161,13 +224,15 @@ export const handler: Handler = async (event) => {
         noReplyReason = "no-reply-captured-after-retry";
       } catch (e2) {
         noReplyReason = "retry-failed";
-        console.log("WH retry-failed", uid, String((e2 as any)?.message ?? e2));
+        errorMsg = String((e2 as any)?.message ?? e2);
+        console.log("WH retry-failed", uid, errorMsg);
         logError("telegram-webhook", e2, { updateId: uid });
         await notifyAdminError(e2, uid);
-        mark(`wh:retry-fail ${String((e2 as any)?.message ?? e2)}`);
+        mark(`wh:retry-fail ${errorMsg}`);
       }
     } else {
       noReplyReason = "error";
+      errorMsg = errMsg;
       logError("telegram-webhook", e, { updateId: uid });
       await notifyAdminError(e, uid);
     }
@@ -178,6 +243,7 @@ export const handler: Handler = async (event) => {
   // показывает точное место сбоя.
   mark(`wh:final no-reply (${noReplyReason})`);
   console.log("WH final", uid, JSON.stringify({ noReplyReason, diag }));
+  await persist(false);
   return {
     statusCode: 200,
     headers: { "Content-Type": "application/json" },

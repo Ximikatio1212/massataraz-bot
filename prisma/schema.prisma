@@ -264,3 +264,20 @@ model WebhookUpdate {
 
   @@index([processedAt])
 }
+
+/// Построчный журнал обработки webhook-апдейтов для диагностики без логов
+/// Netlify Functions (контейнеры us-east-2 cmh, логи недоступны).
+model WebhookDiag {
+  id            Int      @id @default(autoincrement())
+  updateId      BigInt   @unique
+  chatId        BigInt?
+  fromId        BigInt?
+  reply         Boolean  @default(false)
+  replyMethod   String?
+  noReplyReason String   @default("none")
+  diag          String   @default("[]")
+  error         String?
+  createdAt     DateTime @default(now())
+
+  @@index([createdAt])
+}
