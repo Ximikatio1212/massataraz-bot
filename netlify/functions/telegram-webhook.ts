@@ -2,6 +2,7 @@ import type { Handler } from "@netlify/functions";
 import { processUpdate } from "../../src/bot/bot";
 import { logError } from "../../src/utils/errors";
 import { markProcessedUpdate, verifyWebhookSecret } from "../../src/services/webhook.service";
+import { diag, mark, resetDiag } from "../../src/utils/diag";
 
 // Cold-start warm-up: on Netlify/AWS Lambda the first outbound HTTPS from a new
 // container may fail with "Network request failed" (DNS/TLS not yet primed).
@@ -45,6 +46,9 @@ async function notifyAdminError(error: any, updateId?: number) {
 }
 
 export const handler: Handler = async (event) => {
+  resetDiagWithLog();
+  mark(`wh:start`);
+
   if (event.httpMethod !== "POST") {
     return {
       statusCode: 405,
@@ -55,6 +59,7 @@ export const handler: Handler = async (event) => {
   // Проверяем секрет от Telegram, если задан
   const secretHeader = event.headers["x-telegram-bot-api-secret-token"];
   if (!verifyWebhookSecret(secretHeader)) {
+    mark(`wh:unauthorized`);
     return {
       statusCode: 401,
       body: "Unauthorized",
@@ -62,6 +67,7 @@ export const handler: Handler = async (event) => {
   }
 
   if (!event.body) {
+    mark(`wh:no-body`);
     return {
       statusCode: 400,
       body: "Bad Request",
@@ -71,7 +77,9 @@ export const handler: Handler = async (event) => {
   let update: any;
   try {
     update = JSON.parse(event.body);
+    mark(`wh:json-ok`);
   } catch (e) {
+    mark(`wh:json-fail`);
     return {
       statusCode: 400,
       body: "Invalid JSON",
@@ -82,9 +90,18 @@ export const handler: Handler = async (event) => {
   console.log("WH start", uid);
 
   // Дедупликация: Telegram ретраит апдейт при таймауте. Пропускаем повторы.
-  const isNew = await markProcessedUpdate(uid);
+  let isNew: boolean;
+  try {
+    isNew = await markProcessedUpdate(uid);
+    mark(`wh:dedup=${isNew}`);
+  } catch (e: any) {
+    isNew = true;
+    mark(`wh:dedup=err ${String(e?.message ?? e)}`);
+    console.log("WH dedup-err", uid, String(e?.message ?? e));
+  }
   console.log("WH dedup", uid, isNew);
   if (!isNew) {
+    mark(`wh:done dup`);
     return {
       statusCode: 200,
       body: "ok",
@@ -99,52 +116,76 @@ export const handler: Handler = async (event) => {
     const webhookReplyEnvelope = {
       async send(json: string) {
         replyBody = json;
+        mark(`wh:reply captured ${json.slice(0, 80)}`);
       },
     };
     const outcome = await withTimeout(processUpdate(update, webhookReplyEnvelope), PROCESS_TIMEOUT_MS);
     console.log("WH done", uid, outcome, "reply", replyBody != null);
+    mark(`wh:processed=${outcome}`);
+    mark(`wh:reply=${replyBody != null}`);
     return replyBody;
   }
 
+  let noReplyReason = "none";
   try {
     const replyBody = await runWithReply();
     if (replyBody) {
+      // Тело — готовый JSON-запрос к Bot API: Telegram сам отправит сообщение.
+      mark(`wh:return reply`);
       return {
         statusCode: 200,
         headers: { "Content-Type": "application/json" },
         body: replyBody,
       };
     }
+    noReplyReason = "no-reply-captured";
   } catch (e) {
     const errMsg = String((e as any)?.message ?? (e as any)?.error?.message ?? e);
     console.log("WH error", uid, errMsg);
+    mark(`wh:error ${errMsg}`);
 
     if (errMsg.includes("Network request") || errMsg.includes("ENOTFOUND")) {
       console.log("WH retry", uid);
+      mark(`wh:retry`);
       await new Promise((r) => setTimeout(r, 2000));
       try {
         const retryReply = await runWithReply();
         if (retryReply) {
+          mark(`wh:return reply(retry)`);
           return {
             statusCode: 200,
             headers: { "Content-Type": "application/json" },
             body: retryReply,
           };
         }
+        noReplyReason = "no-reply-captured-after-retry";
       } catch (e2) {
+        noReplyReason = "retry-failed";
         console.log("WH retry-failed", uid, String((e2 as any)?.message ?? e2));
         logError("telegram-webhook", e2, { updateId: uid });
         await notifyAdminError(e2, uid);
+        mark(`wh:retry-fail ${String((e2 as any)?.message ?? e2)}`);
       }
     } else {
+      noReplyReason = "error";
       logError("telegram-webhook", e, { updateId: uid });
       await notifyAdminError(e, uid);
     }
   }
 
-  // Always respond 200; Telegram will retry otherwise.
+  // Всегда отвечаем 200: иначе Telegram будет ретраить апдейт. Тело — JSON с
+  // диагностикой: для Telegram оно безвредно, а для синтетических тестов
+  // показывает точное место сбоя.
+  mark(`wh:final no-reply (${noReplyReason})`);
+  console.log("WH final", uid, JSON.stringify({ noReplyReason, diag }));
   return {
     statusCode: 200,
-    body: "ok",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ok: true, reply: false, noReplyReason, diag }),
   };
 };
+
+function resetDiagWithLog() {
+  resetDiag();
+  console.log("WH diag reset");
+}

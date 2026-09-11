@@ -1,6 +1,7 @@
 import { BotContext } from "../bot/middleware/auth";
 import { getUserByTelegramId } from "./user.service";
 import { prisma } from "../db/prisma";
+import { mark } from "../utils/diag";
 
 // ───── провайдер ─────
 
@@ -286,9 +287,11 @@ export async function handleAiChat(
 ): Promise<string | null> {
   const cfg = providerConfig();
   if (!cfg || !ctx.state.user) return null;
+  mark("ai:cfg-ok");
 
   const dbUser = await getUserByTelegramId(ctx.state.user.telegramId);
   if (!dbUser) return null;
+  mark("ai:user-ok");
 
   const isAdmin = ctx.state.user.isAdmin;
   const systemLang = dbUser.lang === "kk" ? "kk" : "ru";
@@ -308,6 +311,7 @@ export async function handleAiChat(
   while (safety++ < 6) {
     let res: any;
     try {
+      mark(`ai:req try=${safety}`);
       res = await fetch(`${cfg.baseUrl}${cfg.chatPath}`, {
         method: "POST",
         headers: {
@@ -323,18 +327,30 @@ export async function handleAiChat(
           max_tokens: 700,
         }),
         signal: AbortSignal.timeout(9_000),
-      }).then((r) => (r.ok ? r.json() : null));
-    } catch {
+      })
+        .then((r) => {
+          mark(`ai:http ${r.status}`);
+          return r.ok ? r.json() : null;
+        });
+    } catch (e: any) {
+      mark(`ai:req-err ${String(e?.message ?? e).slice(0, 120)}`);
       break;
     }
 
     const choice = res?.choices?.[0];
-    if (!choice) break;
+    if (!choice) {
+      mark("ai:no-choice");
+      break;
+    }
 
     const assistant = choice.message as Msg;
     messages.push(assistant);
 
-    if (!assistant.tool_calls?.length) break;
+    if (!assistant.tool_calls?.length) {
+      mark("ai:answer");
+      break;
+    }
+    mark(`ai:tools ${assistant.tool_calls.length}`);
 
     for (const call of assistant.tool_calls) {
       let args: any = {};
@@ -361,9 +377,11 @@ export async function handleAiChat(
       await prisma.user
         .update({ where: { id: dbUser.id }, data: { aiConversation: toSave } })
         .catch(() => {});
+      mark("ai:content");
       return m.content as string;
     }
   }
 
-  return "Не удалось получить ответ. Попробуйте позже.";
+  mark("ai:fallback");
+  return "Не удалось получить ответ. Попробуйте ещё раз.";
 }

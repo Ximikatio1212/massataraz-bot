@@ -15,7 +15,7 @@ export async function handleAssistantStart(ctx: BotContext) {
 
   const isAdmin = ctx.state.user.isAdmin;
   const text = isAdmin
-    ? "🤖 <b>ИИ-ассистент активен.</b>\n\nНапишите, что сделать. Например:\n• «Создай категорию Протеины»\n• «Добавь товар Креатин за 6000 ₸ в категорию Протеины, остаток 20»\n• «Создай связку Старт и добавь туда 2 шт Креатина»\n• «Проверь заказ №5»\n\nПеред созданием я уточню детали и попрошу подтверждение."
+    ? "🤖 <b>ИИ-ассистент активен.</b>\n\nНапишите, что нужно сделать."
     : t(lang, "assistant_client_active");
 
   const kb = isAdmin ? adminMenuKeyboard() : mainMenuKeyboard(isAdmin, lang);

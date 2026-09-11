@@ -2,6 +2,7 @@ import { BotContext } from "./middleware/auth";
 import { InlineKeyboard } from "grammy";
 import { getUserByTelegramId } from "../services/user.service";
 import { getCanvas, saveCanvas } from "../services/state.service";
+import { mark } from "../utils/diag";
 
 type RenderOpts = {
   parse_mode: "HTML";
@@ -34,11 +35,12 @@ async function currentDbUser(ctx: BotContext) {
 export async function renderText(ctx: BotContext, text: string, keyboard?: InlineKeyboard) {
   const opts = buildOpts(keyboard);
   const chatId = ctx.chat?.id;
-  if (chatId == null) { console.log("RENDER no chat"); return; }
+  if (chatId == null) { console.log("RENDER no chat"); mark("render:no-chat"); return; }
 
   const dbUser = await currentDbUser(ctx);
   const canvas = dbUser ? await getCanvas(dbUser.id) : null;
   console.log("RENDER", String(chatId), "len", text.length, "canvas", canvas ? String(canvas.messageId) : "-", "start-msg", ctx.message?.message_id ?? null, "cb", ctx.callbackQuery?.message?.message_id ?? null);
+  mark(`render:${String(chatId)} len=${text.length} canvas=${canvas ? String(canvas.messageId) : "-"}`);
 
   const currentId = ctx.callbackQuery?.message?.message_id;
   const currentChatId = ctx.callbackQuery?.message?.chat?.id;
@@ -54,9 +56,10 @@ export async function renderText(ctx: BotContext, text: string, keyboard?: Inlin
       .then(() => true)
       .catch((e) => {
         console.log("RENDER edit-fail", String(e));
+        mark(`render:edit-fail ${String(e).slice(0, 120)}`);
         return false;
       });
-    if (edited) { console.log("RENDER edited"); return; }
+    if (edited) { console.log("RENDER edited"); mark("render:edited"); return; }
     if (currentId === canvasId) return;
 
     // Canvas was deleted by the user: fall through to recreate it.
@@ -87,9 +90,11 @@ export async function renderText(ctx: BotContext, text: string, keyboard?: Inlin
 
   const sent = await ctx.reply(text, opts).catch((e) => {
     console.log("RENDER reply-fail", String(e));
+    mark(`render:reply-fail ${String(e).slice(0, 120)}`);
     return null;
   });
   console.log("RENDER sent", sent ? String(sent.message_id) : "-");
+  mark(`render:sent=${sent ? String(sent.message_id) : "-"}`);
   if (sent && dbUser) {
     await saveCanvas(dbUser.id, BigInt(chatId), sent.message_id);
     console.log("RENDER canvas-set", String(sent.message_id));

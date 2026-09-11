@@ -3,6 +3,7 @@ import { BotContext, authMiddleware } from "./middleware/auth";
 import { handleCallback, handleTextMessage, handleReceiptUpload, handleAdminPhoto, handleAdminDocument } from "./router";
 import { startHandler, helpHandler } from "./handlers/start";
 import { setBotInstance } from "../instance";
+import { mark } from "../utils/diag";
 
 export function createBot(): Bot<BotContext> {
   const token = process.env.BOT_TOKEN;
@@ -51,9 +52,11 @@ export function createBot(): Bot<BotContext> {
 
   bot.on("message:text", async (ctx) => {
     console.log("MSG text", ctx.chat?.id, JSON.stringify(ctx.message.text?.slice(0, 40)));
+    mark(`msg:text ${ctx.chat?.id} ${JSON.stringify(ctx.message.text?.slice(0, 40))}`);
     if (ctx.message.text.startsWith("/")) return;
     const consumed = await handleTextMessage(ctx);
     console.log("MSG consumed", consumed);
+    mark(`msg:consumed=${consumed}`);
     if (!consumed) {
       await handleAiOrMenu(ctx, ctx.message.text);
     }
@@ -90,6 +93,7 @@ export function createBot(): Bot<BotContext> {
  * canvas, поэтому панель всегда остаётся на виду.
  */
 export async function handleAiOrMenu(ctx: BotContext, text?: string) {
+  mark("ai:entry");
   // Свободный текст = новое обращение пользователя: рисуем ответ новым
   // сообщением (сбрасываем старый canvas, который мог быть удалён в чате),
   // навигация по кнопкам по-прежнему редактирует canvas.
@@ -102,21 +106,25 @@ export async function handleAiOrMenu(ctx: BotContext, text?: string) {
     } catch {}
   }
   if (!(await shouldReplyWithAi(ctx))) {
+    mark("ai:or-menu (no-ai)");
     await startHandler(ctx);
     return;
   }
   const { handleAiChat } = await import("../services/ai.service");
   const isAdmin = ctx.state.user?.isAdmin ?? false;
+  mark("ai:call-start");
   const reply = await handleAiChat(ctx, text ?? "");
   if (!reply) {
+    mark("ai:null");
     await startHandler(ctx);
     return;
   }
+  mark("ai:got-reply");
   await startHandlerToRender(ctx, reply, isAdmin);
 }
 
 async function startHandlerToRender(ctx: BotContext, aiReply: string, isAdmin: boolean) {
-  const { renderText } = await import("./helpers");
+  const { renderText, safeText } = await import("./helpers");
   const { mainMenuKeyboard } = await import("./keyboards/main");
   const { getUserByTelegramId } = await import("../services/user.service");
   let lang = "ru";
@@ -124,7 +132,9 @@ async function startHandlerToRender(ctx: BotContext, aiReply: string, isAdmin: b
     const dbUser = ctx.state.user ? await getUserByTelegramId(ctx.state.user.telegramId) : null;
     lang = dbUser?.lang ?? "ru";
   } catch {}
-  await renderText(ctx, aiReply, mainMenuKeyboard(isAdmin, lang));
+  // Ответ ИИ рендерится с parse_mode HTML: экранируем спецсимволы, чтобы
+  // ответ не "падал" на невалидном HTML (иначе сообщение молча не отправляется).
+  await renderText(ctx, safeText(aiReply), mainMenuKeyboard(isAdmin, lang));
 }
 
 async function shouldReplyWithAi(ctx: BotContext): Promise<boolean> {
