@@ -91,6 +91,9 @@ cp .env.example .env
 
 ```env
 BOT_TOKEN=123456:ABC-DEF...
+# Секрет webhook (любая строка) — Telegram пришлёт его в заголовке X-Telegram-Bot-Api-Secret-Token
+WEBHOOK_SECRET=my-secret-webhook-string
+
 DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/DATABASE?schema=public
 
 # ID администраторов через запятую
@@ -103,6 +106,8 @@ STORAGE_ENDPOINT=https://s3.wasabisys.com
 STORAGE_BUCKET=massa-taraz
 STORAGE_ACCESS_KEY=xxxx
 STORAGE_SECRET_KEY=xxxx
+# Публичный endpoint S3 (для R2 public bucket и аналогов)
+STORAGE_PUBLIC_ENDPOINT=https://pub-xxxx.r2.dev
 ```
 
 > **Как узнать свой Telegram ID:** напишите [@userinfobot](https://t.me/userinfobot) — он покажет ваш ID.
@@ -174,8 +179,10 @@ https://YOUR-DOMAIN/api/telegram-webhook
 ```bash
 curl -X POST "https://api.telegram.org/bot<BOT_TOKEN>/setWebhook" \
   -H "Content-Type: application/json" \
-  -d '{"url":"https://YOUR-DOMAIN/api/telegram-webhook"}'
+  -d '{"url":"https://YOUR-DOMAIN/api/telegram-webhook","secret_token":"<WEBHOOK_SECRET>"}'
 ```
+
+Секрет должен совпадать с переменной окружения `WEBHOOK_SECRET` на Netlify. Функция проверяет заголовок `X-Telegram-Bot-Api-Secret-Token` и отклоняет запросы без него (401), защищая бота от поддельных апдейтов.
 
 ### 5.2 Проверка webhook
 ```bash
@@ -226,6 +233,11 @@ curl "https://api.telegram.org/bot<BOT_TOKEN>/deleteWebhook"
 
 ### 6.5 Подтверждение оплаты
 В уведомлении администратора нажмите «✅ Подтвердить оплату» (остатки товаров спишутся автоматически) или «❌ Отклонить оплату» (нужно ввести причину — клиенту придёт уведомление и он сможет отправить новый чек).
+
+### 6.6 Очистка заказов
+В «⚙️ Админ-панель → 🛒 Заказы» доступны две кнопки:
+- «🧹 Очистить историю» — удаляет завершённые и отменённые заказы.
+- «🗑 Удалить ВСЕ заказы» — удаляет все заказы без исключения (удобно для тестирования). Подтверждается отдельным нажатием.
 
 ---
 
