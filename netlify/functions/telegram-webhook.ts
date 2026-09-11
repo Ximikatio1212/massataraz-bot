@@ -91,9 +91,30 @@ export const handler: Handler = async (event) => {
     };
   }
 
+  async function runWithReply(): Promise<string | null> {
+    // Webhook reply: грамми может ответить на апдейт прямо в теле HTTP-ответа
+    // webhook-запроса ({"method":"...", ...}), не делая исходящего запроса к
+    // api.telegram.org. Захватываем тело ответа и отдаём его как тело функции.
+    let replyBody: string | null = null;
+    const webhookReplyEnvelope = {
+      async send(json: string) {
+        replyBody = json;
+      },
+    };
+    const outcome = await withTimeout(processUpdate(update, webhookReplyEnvelope), PROCESS_TIMEOUT_MS);
+    console.log("WH done", uid, outcome, "reply", replyBody != null);
+    return replyBody;
+  }
+
   try {
-    const outcome = await withTimeout(processUpdate(update), PROCESS_TIMEOUT_MS);
-    console.log("WH done", uid, outcome);
+    const replyBody = await runWithReply();
+    if (replyBody) {
+      return {
+        statusCode: 200,
+        headers: { "Content-Type": "application/json" },
+        body: replyBody,
+      };
+    }
   } catch (e) {
     const errMsg = String((e as any)?.message ?? (e as any)?.error?.message ?? e);
     console.log("WH error", uid, errMsg);
@@ -102,8 +123,14 @@ export const handler: Handler = async (event) => {
       console.log("WH retry", uid);
       await new Promise((r) => setTimeout(r, 2000));
       try {
-        const retry = await withTimeout(processUpdate(update), PROCESS_TIMEOUT_MS);
-        console.log("WH done-retry", uid, retry);
+        const retryReply = await runWithReply();
+        if (retryReply) {
+          return {
+            statusCode: 200,
+            headers: { "Content-Type": "application/json" },
+            body: retryReply,
+          };
+        }
       } catch (e2) {
         console.log("WH retry-failed", uid, String((e2 as any)?.message ?? e2));
         logError("telegram-webhook", e2, { updateId: uid });

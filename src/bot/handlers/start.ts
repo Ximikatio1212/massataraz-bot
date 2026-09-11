@@ -1,6 +1,7 @@
 import { BotContext } from "../middleware/auth";
 import { getOrCreateUser, getUserByTelegramId } from "../../services/user.service";
 import { prisma } from "../../db/prisma";
+import { clearCanvas } from "../../services/state.service";
 import { mainMenuKeyboard } from "../keyboards/main";
 import { editText, replyText } from "../helpers";
 import { t, langOf } from "../../i18n";
@@ -15,6 +16,11 @@ export async function startHandler(ctx: BotContext) {
     from.first_name,
     from.last_name
   );
+
+  // /start — вход в меню: сбрасываем ссылку на старое сообщение-панель и
+  // отправляем свежее. Старый canvas мог быть удалён в чате, и тогда
+  // попытка его отредактировать оборачивается тишиной.
+  await clearCanvas(user.id);
 
   const isAdmin = ctx.state.user?.isAdmin ?? false;
   const lang = user.lang ?? "ru";

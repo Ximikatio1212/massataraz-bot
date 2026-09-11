@@ -28,6 +28,14 @@ export function createBot(): Bot<BotContext> {
       can_manage_bots: false,
       supports_join_request_queries: false,
     },
+    client: {
+      // Отвечаем на апдейт в том же HTTP-ответе webhook-запроса (webhook reply),
+      // чтобы не полагаться на исходящее HTTPS-соединение Lambda к
+      // api.telegram.org, которое на контейнерах AWS (us-east-2 cmh) падает.
+      // answerCallbackQuery исключаем, чтобы первый API-вызов (рендер меню)
+      // всегда отвечался в webhook-reply.
+      canUseWebhookReply: (method) => method !== "answerCallbackQuery",
+    },
   });
   setBotInstance(bot);
 
@@ -71,7 +79,6 @@ export function createBot(): Bot<BotContext> {
 
   bot.catch((err) => {
     console.error("Bot error:", err.error);
-    throw err;
   });
 
   return bot;
@@ -83,6 +90,17 @@ export function createBot(): Bot<BotContext> {
  * canvas, поэтому панель всегда остаётся на виду.
  */
 export async function handleAiOrMenu(ctx: BotContext, text?: string) {
+  // Свободный текст = новое обращение пользователя: рисуем ответ новым
+  // сообщением (сбрасываем старый canvas, который мог быть удалён в чате),
+  // навигация по кнопкам по-прежнему редактирует canvas.
+  if (ctx.state.user) {
+    try {
+      const { getUserByTelegramId } = await import("../services/user.service");
+      const { clearCanvas } = await import("../services/state.service");
+      const dbUser = await getUserByTelegramId(ctx.state.user.telegramId);
+      if (dbUser) await clearCanvas(dbUser.id);
+    } catch {}
+  }
   if (!(await shouldReplyWithAi(ctx))) {
     await startHandler(ctx);
     return;
@@ -157,10 +175,13 @@ async function getBotInstance(): Promise<Bot<BotContext>> {
   return botInstancePromise;
 }
 
-export async function processUpdate(update: any): Promise<void> {
+export async function processUpdate(
+  update: any,
+  webhookReplyEnvelope?: { send: (json: string) => Promise<void> }
+): Promise<void> {
   const bot = await getBotInstance();
   console.log("BOT handleUpdate start");
-  await bot.handleUpdate(update);
+  await bot.handleUpdate(update, webhookReplyEnvelope);
   console.log("BOT handleUpdate done");
 }
 
