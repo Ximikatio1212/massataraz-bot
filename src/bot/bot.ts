@@ -113,20 +113,21 @@ let commandsSet = false;
 async function getBotInstance(): Promise<Bot<BotContext>> {
   if (!botInstancePromise) {
     botInstancePromise = (async () => {
-      console.log("BOT init start");
+      console.log("BOT create");
       const bot = createBot();
-      await bot.init();
-      console.log("BOT getMe ok");
+      // bot.init() (getMe) пропущен: к webhook-апдейтам он не нужен, а первый
+      // исходящий HTTPS к api.telegram.org из Lambda мог висеть до 30с.
       if (!commandsSet) {
         commandsSet = true;
-        await bot.api
+        // Fire-and-forget — команды уже выставлены, повторная установка не обязательна.
+        bot.api
           .setMyCommands([
             { command: "start", description: "🏠 Главное меню" },
             { command: "help", description: "ℹ️ Помощь" },
           ])
           .catch(() => {});
-        console.log("BOT setMyCommands done");
       }
+      console.log("BOT ready");
       return bot;
     })();
   }

@@ -3,6 +3,15 @@ import { processUpdate } from "../../src/bot/bot";
 import { logError } from "../../src/utils/errors";
 import { markProcessedUpdate, verifyWebhookSecret } from "../../src/services/webhook.service";
 
+const PROCESS_TIMEOUT_MS = 25_000;
+
+function withTimeout(promise: Promise<void>, ms: number): Promise<"ok" | "timeout"> {
+  return Promise.race([
+    promise.then(() => "ok" as const),
+    new Promise<"timeout">((resolve) => setTimeout(() => resolve("timeout"), ms)),
+  ]);
+}
+
 async function notifyAdminError(error: any, updateId?: number) {
   const token = process.env.BOT_TOKEN;
   const raw = process.env.ADMIN_IDS ?? "";
@@ -77,8 +86,8 @@ export const handler: Handler = async (event) => {
   }
 
   try {
-    await processUpdate(update);
-    console.log("WH done", uid);
+    const outcome = await withTimeout(processUpdate(update), PROCESS_TIMEOUT_MS);
+    console.log("WH done", uid, outcome);
   } catch (e) {
     console.log("WH error", uid, String((e as any)?.message ?? e));
     logError("telegram-webhook", e, {
