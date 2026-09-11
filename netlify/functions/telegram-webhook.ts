@@ -63,8 +63,12 @@ export const handler: Handler = async (event) => {
     };
   }
 
+  const uid = update?.update_id;
+  console.log("WH start", uid);
+
   // Дедупликация: Telegram ретраит апдейт при таймауте. Пропускаем повторы.
-  const isNew = await markProcessedUpdate(update?.update_id);
+  const isNew = await markProcessedUpdate(uid);
+  console.log("WH dedup", uid, isNew);
   if (!isNew) {
     return {
       statusCode: 200,
@@ -74,11 +78,13 @@ export const handler: Handler = async (event) => {
 
   try {
     await processUpdate(update);
+    console.log("WH done", uid);
   } catch (e) {
+    console.log("WH error", uid, String(e?.message ?? e));
     logError("telegram-webhook", e, {
-      updateId: update?.update_id,
+      updateId: uid,
     });
-    await notifyAdminError(e, update?.update_id);
+    await notifyAdminError(e, uid);
   }
 
   // Always respond 200; Telegram will retry otherwise.

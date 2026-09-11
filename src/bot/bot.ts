@@ -113,8 +113,10 @@ let commandsSet = false;
 async function getBotInstance(): Promise<Bot<BotContext>> {
   if (!botInstancePromise) {
     botInstancePromise = (async () => {
+      console.log("BOT init start");
       const bot = createBot();
       await bot.init();
+      console.log("BOT getMe ok");
       if (!commandsSet) {
         commandsSet = true;
         await bot.api
@@ -123,6 +125,7 @@ async function getBotInstance(): Promise<Bot<BotContext>> {
             { command: "help", description: "ℹ️ Помощь" },
           ])
           .catch(() => {});
+        console.log("BOT setMyCommands done");
       }
       return bot;
     })();
@@ -132,7 +135,9 @@ async function getBotInstance(): Promise<Bot<BotContext>> {
 
 export async function processUpdate(update: any): Promise<void> {
   const bot = await getBotInstance();
+  console.log("BOT handleUpdate start");
   await bot.handleUpdate(update);
+  console.log("BOT handleUpdate done");
 }
 
 export async function setWebhook(url: string, secret?: string): Promise<void> {
