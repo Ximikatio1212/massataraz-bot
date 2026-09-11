@@ -34,10 +34,11 @@ async function currentDbUser(ctx: BotContext) {
 export async function renderText(ctx: BotContext, text: string, keyboard?: InlineKeyboard) {
   const opts = buildOpts(keyboard);
   const chatId = ctx.chat?.id;
-  if (chatId == null) return;
+  if (chatId == null) { console.log("RENDER no chat"); return; }
 
   const dbUser = await currentDbUser(ctx);
   const canvas = dbUser ? await getCanvas(dbUser.id) : null;
+  console.log("RENDER", String(chatId), "len", text.length, "canvas", canvas ? String(canvas.messageId) : "-", "start-msg", ctx.message?.message_id ?? null, "cb", ctx.callbackQuery?.message?.message_id ?? null);
 
   const currentId = ctx.callbackQuery?.message?.message_id;
   const currentChatId = ctx.callbackQuery?.message?.chat?.id;

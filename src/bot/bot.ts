@@ -42,8 +42,10 @@ export function createBot(): Bot<BotContext> {
   });
 
   bot.on("message:text", async (ctx) => {
+    console.log("MSG text", ctx.chat?.id, JSON.stringify(ctx.message.text?.slice(0, 40)));
     if (ctx.message.text.startsWith("/")) return;
     const consumed = await handleTextMessage(ctx);
+    console.log("MSG consumed", consumed);
     if (!consumed) {
       await handleAiOrMenu(ctx, ctx.message.text);
     }
