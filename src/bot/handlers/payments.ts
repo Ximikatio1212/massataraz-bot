@@ -61,14 +61,15 @@ export async function processReceiptMessage(ctx: BotContext): Promise<boolean> {
     return true;
   }
 
-  // Get file size
+  // Get file size (best-effort: if Telegram download API is unreachable from the function region,
+  // skip size validation rather than blocking the receipt)
   let fileSize = 0;
   try {
     const file = await getBot().api.getFile(fileId);
     fileSize = file.file_size ?? 0;
   } catch (e) {
-    await editHostMessage(ctx, hostMessageId, t(lang, "file_tg_fail"));
-    return true;
+    console.error("getFile failed, skipping size validation", e);
+    fileSize = 0;
   }
 
   const validation = validateFileForReceipt(mimeType, fileName, fileSize);

@@ -1391,15 +1391,14 @@ export async function processAdminPhoto(ctx: BotContext): Promise<boolean> {
   try {
     const photo = ctx.message.photo[ctx.message.photo.length - 1];
     let url: string | null = null;
-    try {
-      const file = await getBot().api.getFile(photo.file_id);
-      const buffer = await downloadFile(file.file_path!);
-      ({ url } = await uploadFile(keyPrefix, `image_${Date.now()}.jpg`, buffer, "image/jpeg"));
-    } catch (e: any) {
-      if (e?.message === "STORAGE_NOT_CONFIGURED") {
+try {
+        const file = await getBot().api.getFile(photo.file_id);
+        const buffer = await downloadFile(file.file_path!);
+        ({ url } = await uploadFile(keyPrefix, `image_${Date.now()}.jpg`, buffer, "image/jpeg"));
+      } catch (e: any) {
+        console.error("Image save to storage failed, fallback to file_id", e?.message ?? e);
         url = `tg:${photo.file_id}`;
-      } else throw e;
-    }
+      }
     payload.imageUrl = url;
 
     if (payload.editProductId) {
