@@ -80,7 +80,7 @@ export const handler: Handler = async (event) => {
     await processUpdate(update);
     console.log("WH done", uid);
   } catch (e) {
-    console.log("WH error", uid, String(e?.message ?? e));
+    console.log("WH error", uid, String((e as any)?.message ?? e));
     logError("telegram-webhook", e, {
       updateId: uid,
     });
