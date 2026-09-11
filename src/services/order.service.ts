@@ -82,20 +82,44 @@ export async function getOrderById(id: number) {
   });
 }
 
-export async function getUserOrders(userId: number) {
+export async function getUserOrders(userId: number, offset = 0, limit = 10) {
   return prisma.order.findMany({
     where: { userId },
     orderBy: { createdAt: "desc" },
+    skip: offset,
+    take: limit,
     include: { items: true },
   });
 }
 
-export async function getAllOrders(status?: OrderStatus) {
+export async function countUserOrders(userId: number) {
+  return prisma.order.count({ where: { userId } });
+}
+
+export async function getAllOrders(status?: OrderStatus, offset = 0, limit = 10) {
   return prisma.order.findMany({
     where: status ? { status } : undefined,
     orderBy: { createdAt: "desc" },
+    skip: offset,
+    take: limit,
     include: { items: true, user: true },
   });
+}
+
+export async function countOrders(statuses?: OrderStatus | OrderStatus[]) {
+  const filter = Array.isArray(statuses)
+    ? { status: { in: statuses } }
+    : statuses
+      ? { status: statuses }
+      : undefined;
+  return prisma.order.count({ where: filter });
+}
+
+export async function clearOrdersByStatus(statuses: OrderStatus[]) {
+  const result = await prisma.order.deleteMany({
+    where: { status: { in: statuses } },
+  });
+  return result.count;
 }
 
 export async function updateOrder(

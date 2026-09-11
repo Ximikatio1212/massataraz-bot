@@ -1,9 +1,11 @@
 import { InlineKeyboard } from "grammy";
 import { BotContext } from "../middleware/auth";
 import { getUserByTelegramId } from "../../services/user.service";
-import { getUserOrders, getOrderById } from "../../services/order.service";
+import { getUserOrders, countUserOrders, getOrderById } from "../../services/order.service";
 import { editText, answerAlert } from "../helpers";
 import { formatPrice, formatDate } from "../../utils/formatting";
+
+const PAGE_SIZE = 5;
 
 const STATUS_LABELS: Record<string, string> = {
   pending_payment: "💤 Ожидает оплаты",
@@ -22,27 +24,44 @@ const PAYMENT_LABELS: Record<string, string> = {
   rejected: "Отклонён",
 };
 
-export async function handleOrdersList(ctx: BotContext) {
+export async function handleOrdersList(ctx: BotContext, page = 0) {
   if (!ctx.state.user) return;
   const user = ctx.state.user;
   const dbUser = await getUserByTelegramId(user.telegramId);
   if (!dbUser) return;
 
-  const orders = await getUserOrders(dbUser.id);
+  const [orders, total] = await Promise.all([
+    getUserOrders(dbUser.id, page * PAGE_SIZE, PAGE_SIZE),
+    countUserOrders(dbUser.id),
+  ]);
 
-  if (orders.length === 0) {
+  if (orders.length === 0 && page === 0) {
     await editText(ctx, "📦 <b>МОИ ЗАКАЗЫ</b>\n\nУ вас пока нет заказов.");
     return;
   }
 
   const kb = new InlineKeyboard();
   const lines = orders.map((o) => {
-    kb.text(`№${o.id}`, `order:view:${o.id}`);
+    kb.text(`№${o.id} • ${formatPrice(Number(o.total))}`, `order:view:${o.id}`);
     kb.row();
     return `№${o.id}\n💰 ${formatPrice(Number(o.total))}\n${STATUS_LABELS[o.status] ?? o.status}\n${PAYMENT_LABELS[o.paymentStatus] ?? o.paymentStatus}`;
   });
 
-  const text = [`📦 <b>МОИ ЗАКАЗЫ</b>`, ``, ...lines].join("\n\n");
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const text = [
+    `📦 <b>МОИ ЗАКАЗЫ</b>`,
+    ``,
+    ...lines,
+    ``,
+    `📄 Страница ${page + 1} из ${totalPages} • Всего: ${total}`,
+  ].join("\n\n");
+
+  if (page > 0) kb.text("⬅️", `orders:list:${page - 1}`);
+  kb.text("☰", `orders:list:${page}`);
+  if (orders.length >= PAGE_SIZE && (page + 1) * PAGE_SIZE < total) {
+    kb.text("➡️", `orders:list:${page + 1}`);
+  }
+  kb.row();
   kb.text("⬅️ Главное меню", "main:menu");
 
   await editText(ctx, text, kb);
@@ -56,8 +75,12 @@ export async function handleOrderView(ctx: BotContext, orderId: number) {
 
   const order = await getOrderById(orderId);
 
-  // Users can ONLY see their own orders
-  if (!order || order.userId !== dbUser.id) {
+  // Users can ONLY see their own orders; admins can see any order.
+  if (!order) {
+    await answerAlert(ctx, "❌ Заказ не найден.");
+    return;
+  }
+  if (!user.isAdmin && order.userId !== dbUser.id) {
     await answerAlert(ctx, "❌ Заказ не найден или доступ запрещён.");
     return;
   }
@@ -94,6 +117,12 @@ export async function handleOrderView(ctx: BotContext, orderId: number) {
     kb.row();
   }
   if (isAdmin) {
+    if (order.paymentStatus !== "paid") {
+      kb.text("✅ Подтвердить оплату", `admin:payment:confirm:${order.id}`);
+      kb.row();
+      kb.text("❌ Отклонить оплату", `admin:payment:reject:${order.id}`);
+      kb.row();
+    }
     kb.text("🔄 Изменить статус", `admin:order:status:${order.id}`);
     kb.row();
     kb.text("⬅️ Назад", "admin:orders");

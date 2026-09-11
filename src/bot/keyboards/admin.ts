@@ -47,6 +47,8 @@ export function adminOrdersKeyboard() {
     .row()
     .text("✅ Завершены", "admin:order:list:completed")
     .row()
+    .text("🧹 Очистить историю", "admin:order:clear:completed")
+    .row()
     .text("⬅️ Назад", "admin:menu");
 }
 

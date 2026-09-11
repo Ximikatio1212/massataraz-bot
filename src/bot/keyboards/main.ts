@@ -3,17 +3,15 @@ import { InlineKeyboard } from "grammy";
 export function mainMenuKeyboard(isAdmin: boolean) {
   const kb = new InlineKeyboard();
 
-  kb.text("🛍 Фармакология", "catalog:start");
-  kb.row();
-  kb.text("📚 Готовые связки", "courses:list");
-  kb.row();
-  kb.text("🛒 Корзина", "cart:view");
-  kb.row();
-  kb.text("📦 Мои заказы", "orders:list");
+  kb.row()
+    .text("🛍 Фармакология", "catalog:start")
+    .text("📚 Готовые связки", "courses:list")
+    .row()
+    .text("🛒 Корзина", "cart:view")
+    .text("📦 Мои заказы", "orders:list");
 
   if (isAdmin) {
-    kb.row();
-    kb.text("⚙️ Админ-панель", "admin:menu");
+    kb.row().text("⚙️ Админ-панель", "admin:menu");
   }
 
   return kb;
@@ -28,11 +26,9 @@ export function adminMenuKeyboard() {
     .text("📚 Готовые связки", "admin:courses")
     .row()
     .text("🛒 Заказы", "admin:orders")
-    .row()
     .text("💳 Оплаты", "admin:payments")
     .row()
     .text("👥 Клиенты", "admin:clients")
-    .row()
     .text("📊 Статистика", "admin:statistics")
     .row()
     .text("⬅️ Главное меню", "main:menu");

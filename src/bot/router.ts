@@ -5,6 +5,7 @@ import { handleProductView, handleProductAdd } from "./handlers/products";
 import { handleCoursesList, handleCourseView, handleCourseAdd } from "./handlers/courses";
 import {
   handleCartView,
+  handleCartItemView,
   handleCartInc,
   handleCartDec,
   handleCartDel,
@@ -56,6 +57,8 @@ import {
   handleAdminOrderListByFilter,
   handleAdminOrderStatus,
   handleAdminOrderSetStatus,
+  handleAdminClearOrders,
+  handleAdminClearOrdersConfirm,
   handleAdminPaymentList,
   handleAdminPaymentConfirm,
   handleAdminPaymentReject,
@@ -106,6 +109,7 @@ export async function handleCallback(ctx: BotContext, data: string) {
       if (parts[1] === "item") {
         const op = parts[2];
         const cartItemId = Number(parts[3]);
+        if (op === "view") return handleCartItemView(ctx, cartItemId);
         if (op === "inc") return handleCartInc(ctx, cartItemId);
         if (op === "dec") return handleCartDec(ctx, cartItemId);
         if (op === "del") return handleCartDel(ctx, cartItemId);
@@ -121,6 +125,10 @@ export async function handleCallback(ctx: BotContext, data: string) {
 
     case "order":
       if (parts[1] === "view") return handleOrderView(ctx, Number(parts[2]));
+      break;
+
+    case "orders":
+      if (parts[1] === "list") return handleOrdersList(ctx, parts[2] ? Number(parts[2]) : 0);
       break;
 
     case "cancel":
@@ -242,9 +250,13 @@ async function handleAdminCallback(ctx: BotContext, parts: string[]) {
 
     case "order": {
       const action = parts[2];
-      if (action === "list") return handleAdminOrderListByFilter(ctx, parts[3]);
+      if (action === "list") return handleAdminOrderListByFilter(ctx, parts[3], parts[4] ? Number(parts[4]) : 0);
       if (action === "status") return handleAdminOrderStatus(ctx, Number(parts[3]));
       if (action === "setstatus") return handleAdminOrderSetStatus(ctx, parts[3], Number(parts[4]));
+      if (action === "clear") {
+        if (parts[3] === "yes") return handleAdminClearOrdersConfirm(ctx, parts[4], true);
+        return handleAdminClearOrders(ctx, parts[3]);
+      }
       break;
     }
 

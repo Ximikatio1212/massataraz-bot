@@ -81,6 +81,36 @@ export async function handleAdminCourses(ctx: BotContext) {
   await editText(ctx, "📚 <b>ГОТОВЫЕ СВЯЗКИ</b>\n\nВыберите действие:", adminCoursesKeyboard());
 }
 
+export async function handleAdminClearOrders(ctx: BotContext, target: string) {
+  if (!isAdminUser(ctx)) return;
+  const { countOrders } = await import("../../services/order.service");
+
+  let statuses: ("completed" | "cancelled")[];
+  if (target === "completed" || target === "old") {
+    statuses = ["completed", "cancelled"];
+  } else {
+    statuses = [];
+  }
+
+  const count = await countOrders(statuses);
+  const kb = new InlineKeyboard()
+    .text(`✅ Да, удалить (${count})`, `admin:order:clear:yes:${target}`)
+    .row()
+    .text("❌ Отмена", "admin:orders");
+  await editText(ctx, `🧹 <b>ОЧИСТКА ИСТОРИИ</b>\n\nУдалить <b>${count}</b> завершённых/отменённых заказов? Это действие необратимо.`, kb);
+}
+
+export async function handleAdminClearOrdersConfirm(ctx: BotContext, target: string, yes: boolean) {
+  if (!isAdminUser(ctx)) return;
+  if (!yes) {
+    await editText(ctx, "❌ Отменено.", adminOrdersKeyboard());
+    return;
+  }
+  const { clearOrdersByStatus } = await import("../../services/order.service");
+  const deleted = await clearOrdersByStatus(["completed", "cancelled"]);
+  await editText(ctx, `✅ Удалено заказов: <b>${deleted}</b>.`, adminOrdersKeyboard());
+}
+
 export async function handleAdminOrders(ctx: BotContext) {
   if (!isAdminUser(ctx)) return;
   const { getOrderCounts } = await import("../../services/order.service");
@@ -1320,22 +1350,47 @@ async function downloadFile(filePath: string): Promise<Buffer> {
 /* Orders & payments                                                   */
 /* ------------------------------------------------------------------ */
 
-export async function handleAdminOrderListByFilter(ctx: BotContext, filter: string) {
+const PAGE_SIZE = 5;
+
+export async function handleAdminOrderListByFilter(ctx: BotContext, filter: string, page = 0) {
   if (!isAdminUser(ctx)) return;
-  const { getAllOrders: listOrders } = await import("../../services/order.service");
-  const orders = await (filter === "all" ? listOrders() : listOrders(filter as any));
-  if (orders.length === 0) {
+  const { getAllOrders: listOrders, countOrders } = await import("../../services/order.service");
+
+  const statusArg: any = filter === "all" ? undefined : filter;
+  const [orders, total] = await Promise.all([
+    listOrders(statusArg, page * PAGE_SIZE, PAGE_SIZE),
+    countOrders(statusArg),
+  ]);
+
+  if (orders.length === 0 && page === 0) {
     await editText(ctx, "🛒 По этому фильтру заказов нет.", adminOrdersKeyboard());
     return;
   }
+
   const kb = new InlineKeyboard();
-  const lines = orders.slice(0, 10).map((o) => {
+  const lines = orders.map((o) => {
     kb.text(`№${o.id} • ${formatPrice(Number(o.total))}`, `order:view:${o.id}`);
     kb.row();
     return `№${o.id} • ${formatPrice(Number(o.total))} • ${o.status}`;
   });
+
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const text = [
+    `🛒 <b>ЗАКАЗЫ</b> — ${filter === "all" ? "все" : filter}`,
+    ``,
+    ...lines,
+    ``,
+    `📄 Страница ${page + 1} из ${totalPages} • Всего: ${total}`,
+  ].join("\n");
+
+  if (page > 0) kb.text("⬅️", `admin:order:list:${filter}:${page - 1}`);
+  kb.text("☰", `admin:order:list:${filter}:${page}`);
+  if (orders.length >= PAGE_SIZE && (page + 1) * PAGE_SIZE < total) {
+    kb.text("➡️", `admin:order:list:${filter}:${page + 1}`);
+  }
+  kb.row();
   kb.text("⬅️ Назад", "admin:orders");
-  await editText(ctx, [`🛒 <b>ЗАКАЗЫ</b>`, "", ...lines].join("\n"), kb);
+  await editText(ctx, text, kb);
 }
 
 export async function handleAdminOrderStatus(ctx: BotContext, orderId: number) {

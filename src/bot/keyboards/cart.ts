@@ -4,13 +4,12 @@ import { CartView } from "../../types";
 export function cartKeyboard(userId: number, cart: CartView) {
   const kb = new InlineKeyboard();
 
-  cart.items.forEach((item, index) => {
-    kb.text(`➕`, `cart:item:inc:${item.cartItemId}`)
-      .text(`➖`, `cart:item:dec:${item.cartItemId}`)
-      .text(`🗑`, `cart:item:del:${item.cartItemId}`);
-    if ((index + 1) % 2 === 0) kb.row();
+  cart.items.forEach((item) => {
+    const icon = item.type === "course" ? "📚" : "💊";
+    const label = item.name.length > 32 ? `${item.name.slice(0, 32)}…` : item.name;
+    kb.text(`${icon} ${label} — ${item.quantity} шт`, `cart:item:view:${item.cartItemId}`);
+    kb.row();
   });
-  if (cart.items.length % 2 !== 0) kb.row();
 
   if (cart.items.length > 0) {
     kb.text("🧹 Очистить корзину", "cart:clear");
@@ -20,6 +19,15 @@ export function cartKeyboard(userId: number, cart: CartView) {
   }
   kb.text("⬅️ Главное меню", "main:menu");
   return kb;
+}
+
+export function cartItemKeyboard(cartItemId: number) {
+  return new InlineKeyboard()
+    .text("➖", `cart:item:dec:${cartItemId}`)
+    .text("🗑 Удалить", `cart:item:del:${cartItemId}`)
+    .text("➕", `cart:item:inc:${cartItemId}`)
+    .row()
+    .text("⬅️ Назад в корзину", "cart:view");
 }
 
 export function cartConfirmKeyboard() {
