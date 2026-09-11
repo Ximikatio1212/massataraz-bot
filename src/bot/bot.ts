@@ -36,22 +36,48 @@ export function createBot(): Bot<BotContext> {
   return bot;
 }
 
+// Singleton в рамках одного warm-инстанса serverless-функции.
+// Это устраняет повторное создание бота и лишний вызов bot.init() на каждый апдейт.
+let botInstancePromise: Promise<Bot<BotContext>> | null = null;
+let commandsSet = false;
+
+async function getBotInstance(): Promise<Bot<BotContext>> {
+  if (!botInstancePromise) {
+    botInstancePromise = (async () => {
+      const bot = createBot();
+      await bot.init();
+      if (!commandsSet) {
+        commandsSet = true;
+        await bot.api
+          .setMyCommands([
+            { command: "start", description: "🏠 Главное меню" },
+            { command: "help", description: "ℹ️ Помощь" },
+          ])
+          .catch(() => {});
+      }
+      return bot;
+    })();
+  }
+  return botInstancePromise;
+}
+
 export async function processUpdate(update: any): Promise<void> {
-  const bot = createBot();
-  await bot.init();
-  await bot.api.setMyCommands([
-    { command: "start", description: "🏠 Главное меню" },
-    { command: "help", description: "ℹ️ Помощь" },
-  ]).catch(() => {});
+  const bot = await getBotInstance();
   await bot.handleUpdate(update);
 }
 
-export async function setWebhook(url: string): Promise<void> {
+export async function setWebhook(url: string, secret?: string): Promise<void> {
   const bot = createBot();
-  await bot.api.setWebhook(url);
+  await bot.api.setWebhook(url, secret ? { secret_token: secret } : {});
 }
 
 export async function deleteWebhook(): Promise<void> {
   const bot = createBot();
   await bot.api.deleteWebhook();
+}
+
+// Только для локального тестирования / сброса кэша
+export function resetBotInstanceCache(): void {
+  botInstancePromise = null;
+  commandsSet = false;
 }

@@ -114,6 +114,37 @@ export async function handleAdminClearOrdersConfirm(ctx: BotContext, target: str
   await editText(ctx, `✅ Удалено заказов: <b>${deleted}</b>.`, adminOrdersKeyboard());
 }
 
+export async function handleAdminClearAllOrders(ctx: BotContext) {
+  if (!isAdminUser(ctx)) return;
+  const { countOrders } = await import("../../services/order.service");
+  const count = await countOrders();
+  const kb = new InlineKeyboard()
+    .text(`✅ Да, удалить все (${count})`, "admin:order:clearall:yes")
+    .row()
+    .text("❌ Отмена", "admin:orders");
+  await editText(
+    ctx,
+    `🗑 <b>УДАЛИТЬ ВСЕ ЗАКАЗЫ</b>\n\nБудут удалены <b>${count}</b> заказ(а/ов) вместе с историями оплат.\n\n⚠️ Действие необратимо. Продолжить?`,
+    kb
+  );
+}
+
+export async function handleAdminClearAllOrdersConfirm(ctx: BotContext, yes: boolean) {
+  if (!isAdminUser(ctx)) return;
+  if (!yes) {
+    await editText(ctx, "❌ Отменено.", adminOrdersKeyboard());
+    return;
+  }
+  const { deleteAllOrders } = await import("../../services/order.service");
+  let deleted = 0;
+  try {
+    deleted = await deleteAllOrders();
+  } catch (e) {
+    return answerAlert(ctx, userFriendlyError("UPDATE_FAILED"));
+  }
+  await editText(ctx, `✅ Удалено <b>${deleted}</b> заказов. База очищена.`, adminOrdersKeyboard());
+}
+
 export async function handleAdminOrders(ctx: BotContext) {
   if (!isAdminUser(ctx)) return;
   const { getOrderCounts } = await import("../../services/order.service");

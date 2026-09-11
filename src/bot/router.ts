@@ -61,6 +61,8 @@ import {
   handleAdminOrderSetStatus,
   handleAdminClearOrders,
   handleAdminClearOrdersConfirm,
+  handleAdminClearAllOrders,
+  handleAdminClearAllOrdersConfirm,
   handleAdminPaymentList,
   handleAdminPaymentConfirm,
   handleAdminPaymentReject,
@@ -275,6 +277,11 @@ async function handleAdminCallback(ctx: BotContext, parts: string[]) {
       if (action === "list") return handleAdminOrderListByFilter(ctx, parts[3], parts[4] ? Number(parts[4]) : 0);
       if (action === "status") return handleAdminOrderStatus(ctx, Number(parts[3]));
       if (action === "setstatus") return handleAdminOrderSetStatus(ctx, parts[3], Number(parts[4]));
+      if (action === "clearall") {
+        if (parts[3] === "yes") return handleAdminClearAllOrdersConfirm(ctx, true);
+        if (parts[3] === "no") return handleAdminClearAllOrdersConfirm(ctx, false);
+        return handleAdminClearAllOrders(ctx);
+      }
       if (action === "clear") {
         if (parts[3] === "yes") return handleAdminClearOrdersConfirm(ctx, parts[4], true);
         return handleAdminClearOrders(ctx, parts[3]);

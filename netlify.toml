@@ -1,5 +1,6 @@
 [build]
-  command = "npx prisma generate && npx prisma db push && npm run build"
+  # migrate deploy безопасно применяет только новые миграции (вместо рискованного db push)
+  command = "npx prisma generate && npx prisma migrate deploy && npm run build"
   functions = "dist/netlify/functions"
   publish = "public"
 

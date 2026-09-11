@@ -1,6 +1,7 @@
 import type { Handler } from "@netlify/functions";
 import { processUpdate } from "../../src/bot/bot";
 import { logError } from "../../src/utils/errors";
+import { markProcessedUpdate, verifyWebhookSecret } from "../../src/services/webhook.service";
 
 async function notifyAdminError(error: any, updateId?: number) {
   const token = process.env.BOT_TOKEN;
@@ -36,6 +37,15 @@ export const handler: Handler = async (event) => {
     };
   }
 
+  // Проверяем секрет от Telegram, если задан
+  const secretHeader = event.headers["x-telegram-bot-api-secret-token"];
+  if (!verifyWebhookSecret(secretHeader)) {
+    return {
+      statusCode: 401,
+      body: "Unauthorized",
+    };
+  }
+
   if (!event.body) {
     return {
       statusCode: 400,
@@ -50,6 +60,15 @@ export const handler: Handler = async (event) => {
     return {
       statusCode: 400,
       body: "Invalid JSON",
+    };
+  }
+
+  // Дедупликация: Telegram ретраит апдейт при таймауте. Пропускаем повторы.
+  const isNew = await markProcessedUpdate(update?.update_id);
+  if (!isNew) {
+    return {
+      statusCode: 200,
+      body: "ok",
     };
   }
 

@@ -123,6 +123,12 @@ export async function clearOrdersByStatus(statuses: OrderStatus[]) {
   return result.count;
 }
 
+// Удаляет ВСЕ заказы, связанные данные удаляются каскадно (OrderItem, Payment)
+export async function deleteAllOrders(): Promise<number> {
+  const result = await prisma.order.deleteMany({});
+  return result.count;
+}
+
 export async function updateOrder(
   id: number,
   data: {

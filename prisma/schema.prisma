@@ -250,3 +250,12 @@ model Payment {
   @@index([userId])
   @@index([status])
 }
+
+// Трекер обработанных Telegram-апдейтов (защита от двойной обработки)
+model WebhookUpdate {
+  id          Int      @id @default(autoincrement())
+  updateId    BigInt   @unique
+  processedAt DateTime @default(now())
+
+  @@index([processedAt])
+}
