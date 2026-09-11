@@ -1,5 +1,5 @@
 import { BotContext } from "./middleware/auth";
-import { startHandler } from "./handlers/start";
+import { startHandler, handleLangSet } from "./handlers/start";
 import { handleCatalogStart, handleCategoryView } from "./handlers/catalog";
 import { handleProductView, handleProductAdd } from "./handlers/products";
 import { handleCoursesList, handleCourseView, handleCourseAdd } from "./handlers/courses";
@@ -77,6 +77,7 @@ import {
   handleCancelCurrent,
 } from "./handlers/admin";
 import { handleClientView, handleAdminClients } from "./handlers/adminClients";
+import { handleAssistantStart, handleAssistantStop } from "./handlers/assistant";
 
 export async function handleCallback(ctx: BotContext, data: string) {
   if (!ctx.state.user) return;
@@ -84,8 +85,18 @@ export async function handleCallback(ctx: BotContext, data: string) {
   const scope = parts[0];
 
   switch (scope) {
+    case "assistant":
+      if (parts[1] === "start") return handleAssistantStart(ctx);
+      if (parts[1] === "stop") return handleAssistantStop(ctx);
+      break;
+
     case "main":
       if (parts[1] === "menu") return startHandler(ctx);
+      break;
+
+    case "lang":
+      if (parts[1] === "ru") return handleLangSet(ctx, "ru");
+      if (parts[1] === "kk") return handleLangSet(ctx, "kk");
       break;
 
     case "catalog":
@@ -311,8 +322,8 @@ async function handleAdminCallback(ctx: BotContext, parts: string[]) {
   }
 }
 
-export async function handleTextMessage(ctx: BotContext) {
-  if (!ctx.state.user || !ctx.message?.text) return;
+export async function handleTextMessage(ctx: BotContext): Promise<boolean> {
+  if (!ctx.state.user || !ctx.message?.text) return false;
   const { processOrderText } = await import("./handlers/checkout");
   const { processAdminText } = await import("./handlers/admin");
   const { getState } = await import("../services/state.service");
@@ -320,10 +331,10 @@ export async function handleTextMessage(ctx: BotContext) {
   const { ConversationState } = await import("@prisma/client");
 
   const dbUser = await getUserByTelegramId(ctx.state.user.telegramId);
-  if (!dbUser) return;
+  if (!dbUser) return false;
 
   const state = await getState(dbUser.id);
-  if (!state || state.state === ConversationState.NONE) return;
+  if (!state || state.state === ConversationState.NONE) return false;
 
   if (
     state.state === ConversationState.WAITING_ORDER_NAME ||
@@ -333,22 +344,24 @@ export async function handleTextMessage(ctx: BotContext) {
     state.state === ConversationState.WAITING_ORDER_PHONE ||
     state.state === ConversationState.WAITING_RECEIPT
   ) {
-    return processOrderText(ctx, state, ctx.message.text);
+    await processOrderText(ctx, state, ctx.message.text);
+    return true;
   }
 
-  return processAdminText(ctx, state, ctx.message.text);
+  await processAdminText(ctx, state, ctx.message.text);
+  return true;
 }
 
-export async function handleReceiptUpload(ctx: BotContext) {
-  if (!ctx.state.user) return;
+export async function handleReceiptUpload(ctx: BotContext): Promise<boolean> {
+  if (!ctx.state.user) return false;
   const { processReceiptMessage } = await import("./handlers/payments");
-  await processReceiptMessage(ctx);
+  return processReceiptMessage(ctx);
 }
 
-export async function handleAdminPhoto(ctx: BotContext) {
-  if (!ctx.state.user || !ctx.message?.photo) return;
+export async function handleAdminPhoto(ctx: BotContext): Promise<boolean> {
+  if (!ctx.state.user || !ctx.message?.photo) return false;
   const { processAdminPhoto } = await import("./handlers/admin");
-  await processAdminPhoto(ctx);
+  return processAdminPhoto(ctx);
 }
 
 export async function handleAdminDocument(ctx: BotContext) {

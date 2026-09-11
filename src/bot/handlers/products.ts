@@ -6,34 +6,39 @@ import { getUserByTelegramId } from "../../services/user.service";
 import { renderPhoto, editText, answerAlert } from "../helpers";
 import { formatPrice } from "../../utils/formatting";
 import { userFriendlyError } from "../../utils/errors";
+import { t } from "../../i18n";
 
 export async function handleProductView(ctx: BotContext, productId: number) {
   if (!ctx.state.user) return;
+  const dbUser = await getUserByTelegramId(ctx.state.user.telegramId);
+  if (!dbUser) return;
+  const lang = dbUser.lang ?? "ru";
+
   const product = await getProductById(productId);
 
   if (!product || !product.isActive) {
-    await answerAlert(ctx, "❌ Товар не найден или недоступен.");
+    await answerAlert(ctx, t(lang, "product_not_found"));
     return;
   }
 
   const kb = new InlineKeyboard();
   if (product.stock > 0) {
-    kb.text("➕ Добавить в корзину", `product:add:${product.id}`);
+    kb.text(t(lang, "btn_add_cart"), `product:add:${product.id}`);
     kb.row();
   }
-  kb.text("🛒 Перейти в корзину", "cart:view");
+  kb.text(t(lang, "btn_go_cart"), "cart:view");
   kb.row();
-  kb.text("⬅️ Назад", `category:view:${product.categoryId}`);
+  kb.text(t(lang, "btn_back"), `category:view:${product.categoryId}`);
 
   const text = [
     `💊 <b>${product.name}</b>`,
     ``,
     product.description ?? "",
     ``,
-    `💰 Цена: ${formatPrice(Number(product.price))}`,
+    t(lang, "price_label", { price: formatPrice(Number(product.price)) }),
     product.stock > 0
-      ? `📦 В наличии: ${product.stock} шт.`
-      : `❌ Товара сейчас нет в наличии`,
+      ? t(lang, "in_stock", { n: product.stock })
+      : t(lang, "product_no_stock"),
   ].join("\n");
 
   const photo = resolveImageUrl(product.imageUrl);
@@ -58,13 +63,14 @@ export async function handleProductAdd(ctx: BotContext, productId: number, quant
   // Resolve internal user id
   const dbUser = await getUserByTelegramId(user.telegramId);
   if (!dbUser) return;
+  const lang = dbUser.lang ?? "ru";
 
   try {
     await addProductToCart(dbUser.id, productId, quantity);
-    await answerAlert(ctx, "✅ Товар добавлен в корзину");
+    await answerAlert(ctx, t(lang, "product_added"));
     const msg = ctx.callbackQuery?.message as any;
     if (msg?.caption != null) await ctx.deleteMessage().catch(() => {});
   } catch (e: any) {
-    await answerAlert(ctx, userFriendlyError(e.message ?? "GENERIC"));
+    await answerAlert(ctx, userFriendlyError(e.message ?? "GENERIC", lang));
   }
 }

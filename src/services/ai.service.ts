@@ -1,0 +1,367 @@
+import { BotContext } from "../bot/middleware/auth";
+import { getUserByTelegramId } from "./user.service";
+import { prisma } from "../db/prisma";
+
+// ───── провайдер ─────
+
+interface Provider {
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+}
+
+const PROVIDERS: Record<string, { baseUrl: string; defaultModel: string }> = {
+  gemini: {
+    baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
+    defaultModel: "gemini-3.5-flash",
+  },
+  mistral: {
+    baseUrl: "https://api.mistral.ai",
+    defaultModel: "mistral-small-latest",
+  },
+  groq: {
+    baseUrl: "https://api.groq.com/openai",
+    defaultModel: "llama-3.3-70b-versatile",
+  },
+  openrouter: {
+    baseUrl: "https://openrouter.ai/api",
+    defaultModel: "mistralai/mistral-small-3.1-24b-instruct:free",
+  },
+};
+
+function providerConfig(): Provider | null {
+  const name = (process.env.AI_PROVIDER ?? "gemini").toLowerCase();
+  const p = PROVIDERS[name] ?? PROVIDERS.gemini;
+  const apiKey = process.env.AI_API_KEY;
+  if (!apiKey) return null;
+  const model = process.env.AI_MODEL || p.defaultModel;
+  return { baseUrl: p.baseUrl, apiKey, model };
+}
+
+export function aiEnabled(): boolean {
+  return providerConfig() != null;
+}
+
+// ───── AI-режим ─────
+
+export async function getAiMode(userId: number): Promise<boolean> {
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { aiMode: true } });
+  return user?.aiMode ?? false;
+}
+
+export async function setAiMode(userId: number, on: boolean) {
+  await prisma.user.update({ where: { id: userId }, data: { aiMode: on } }).catch(() => {});
+}
+
+// ───── инструменты ─────
+
+interface ToolDef {
+  type: "function";
+  function: { name: string; description: string; parameters: any };
+}
+
+function td(name: string, desc: string, params: any): ToolDef {
+  return { type: "function", function: { name, description: desc, parameters: params } };
+}
+
+const clientTools: ToolDef[] = [
+  td("search_products", "Поиск товаров по названию (возвращает id, name, price, stock, description, categoryId)", {
+    type: "object",
+    properties: { query: { type: "string" } },
+    required: ["query"],
+  }),
+  td("list_categories", "Список активных категорий (id + name)", {
+    type: "object", properties: {}, required: [],
+  }),
+  td("list_products", "Все активные товары (id, name, price, stock, categoryId)", {
+    type: "object", properties: {}, required: [],
+  }),
+  td("get_courses", "Все курсы/связки (id, name, price, description)", {
+    type: "object", properties: {}, required: [],
+  }),
+  td("get_order_status", "Статус заказа клиента (только свои заказы)", {
+    type: "object", properties: { orderId: { type: "integer" } }, required: ["orderId"],
+  }),
+  td("explain_substance", "Краткая справка по веществу/компоненту (2–3 предложения из Wikipedia RU). Для вопросов вида «что такое тестостерон/креатин»", {
+    type: "object", properties: { query: { type: "string" } }, required: ["query"],
+  }),
+];
+
+const adminTools: ToolDef[] = [
+  ...clientTools,
+  td("create_category", "Создать новую категорию товаров", {
+    type: "object",
+    properties: { name: { type: "string" }, description: { type: "string" } },
+    required: ["name"],
+  }),
+  td("create_product", "Создать новый товар. categoryId obtained via list_categories", {
+    type: "object",
+    properties: {
+      name: { type: "string" },
+      price: { type: "number", description: "цена в тенге" },
+      description: { type: "string" },
+      categoryId: { type: "integer" },
+      stock: { type: "integer", description: "остаток на складе" },
+    },
+    required: ["name", "price", "categoryId"],
+  }),
+  td("create_course", "Создать курс/связку", {
+    type: "object",
+    properties: {
+      name: { type: "string" },
+      price: { type: "number" },
+      description: { type: "string" },
+    },
+    required: ["name", "price"],
+  }),
+  td("add_course_item", "Добавить товар (productId) в курс. Товары ищите через list_products", {
+    type: "object",
+    properties: {
+      courseId: { type: "integer" },
+      productId: { type: "integer" },
+      quantity: { type: "integer" },
+    },
+    required: ["courseId", "productId", "quantity"],
+  }),
+  td("set_product_stock", "Установить остаток товара", {
+    type: "object",
+    properties: { productId: { type: "integer" }, stock: { type: "integer" } },
+    required: ["productId", "stock"],
+  }),
+];
+
+// ───── исполнение инструментов ─────
+
+async function execTool(name: string, args: any, ctx: BotContext): Promise<string> {
+  try {
+    switch (name) {
+      case "search_products": {
+        const q = String(args.query ?? "");
+        const items = await prisma.product.findMany({
+          where: { isActive: true, name: { contains: q, mode: "insensitive" } },
+          select: { id: true, name: true, price: true, stock: true, description: true, categoryId: true },
+          take: 15,
+        });
+        return JSON.stringify(items);
+      }
+      case "list_categories": {
+        const cats = await prisma.category.findMany({ where: { isActive: true }, select: { id: true, name: true }, orderBy: { name: "asc" } });
+        return JSON.stringify(cats);
+      }
+      case "list_products": {
+        const items = await prisma.product.findMany({
+          where: { isActive: true },
+          select: { id: true, name: true, price: true, stock: true, categoryId: true },
+          orderBy: { name: "asc" }, take: 60,
+        });
+        return JSON.stringify(items);
+      }
+      case "get_courses": {
+        const c = await prisma.course.findMany({
+          where: { isActive: true },
+          select: { id: true, name: true, price: true, description: true },
+          orderBy: { name: "asc" },
+        });
+        return JSON.stringify(c);
+      }
+      case "get_order_status": {
+        if (!ctx.state.user) return JSON.stringify({ error: "не авторизован" });
+        const dbUser = await getUserByTelegramId(ctx.state.user.telegramId);
+        if (!dbUser) return JSON.stringify({ error: "пользователь не найден" });
+        const order = await prisma.order.findFirst({
+          where: { id: Number(args.orderId), userId: dbUser.id },
+        });
+        if (!order) return JSON.stringify({ error: "заказ не найден" });
+        return JSON.stringify({ id: order.id, status: order.status, total: String(order.total) });
+      }
+      case "explain_substance": {
+        const query = encodeURIComponent(String(args.query ?? ""));
+        const res: any = await fetch(
+          `https://ru.wikipedia.org/api/rest_v1/page/summary/${query}`,
+          { signal: AbortSignal.timeout(5000) }
+        ).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+        if (!res?.extract) return "Нет данных в Wikipedia по запросу.";
+        return res.extract.slice(0, 500);
+      }
+      case "create_category": {
+        if (!ctx.state.user?.isAdmin) return "Только для администратора";
+        const cat = await prisma.category.create({
+          data: { name: args.name, description: args.description ?? null },
+        });
+        return JSON.stringify({ ok: true, id: cat.id, name: cat.name });
+      }
+      case "create_product": {
+        if (!ctx.state.user?.isAdmin) return "Только для администратора";
+        const p = await prisma.product.create({
+          data: {
+            name: args.name,
+            price: Number(args.price),
+            description: args.description ?? null,
+            categoryId: Number(args.categoryId),
+            stock: Number(args.stock ?? 0),
+          },
+        });
+        return JSON.stringify({ ok: true, id: p.id, name: p.name });
+      }
+      case "create_course": {
+        if (!ctx.state.user?.isAdmin) return "Только для администратора";
+        const c = await prisma.course.create({
+          data: { name: args.name, price: Number(args.price), description: args.description ?? null },
+        });
+        return JSON.stringify({ ok: true, id: c.id, name: c.name });
+      }
+      case "add_course_item": {
+        if (!ctx.state.user?.isAdmin) return "Только для администратора";
+        await prisma.courseItem.create({
+          data: {
+            courseId: Number(args.courseId),
+            productId: Number(args.productId),
+            quantity: Number(args.quantity ?? 1),
+          },
+        });
+        return JSON.stringify({ ok: true });
+      }
+      case "set_product_stock": {
+        if (!ctx.state.user?.isAdmin) return "Только для администратора";
+        await prisma.product.update({
+          where: { id: Number(args.productId) },
+          data: { stock: Number(args.stock) },
+        });
+        return JSON.stringify({ ok: true });
+      }
+      default:
+        return `Неизвестный инструмент: ${name}`;
+    }
+  } catch (e: any) {
+    return `Ошибка: ${e.message ?? String(e)}`;
+  }
+}
+
+// ───── система ─────
+
+const CLIENT_SYSTEM = [
+  "Ты — консультант магазина спортивного питания «Massa Taraz» (Казахстан, тенге).",
+  "Отвечай кратко и дружелюбно на русском. Рекомендуй товары по реальным данным из инструментов — никогда не выдумывай цены.",
+  "Для вопросов о составе/свойствах (тестостерон, протеин, BCAA и т.д.) используй explain_substance: 2–3 предложения, без лишней информации.",
+  "Не давай медицинских/лечебных рекомендаций: это спортпит, не лекарство.",
+].join("\n");
+
+const ADMIN_SYSTEM = [
+  "Ты — ИИ-помощник администратора магазина «Massa Taraz».",
+  "Помогаешь управлять каталогом: категории, товары, курсы/связки, остатки.",
+  "Перед созданием ОБЯЗАТЕЛЬНО покажи план: название, цена, категория, описание, остаток. Затем спроси «Создаю? Да / нет».",
+  "Создавай товар/категорию/курс ТОЛЬКО после явного подтверждения «да» от админа.",
+  "Используй инструменты для работы с БД. Всё на русском, кратко и по делу.",
+].join("\n");
+
+// ───── история ─────
+
+interface Msg {
+  role: "system" | "user" | "assistant" | "tool";
+  content: string | null;
+  tool_calls?: any[];
+  tool_call_id?: string;
+}
+
+export function trimAiMessages(msgs: any[]): Msg[] {
+  if (!Array.isArray(msgs)) return [];
+  return msgs
+    .map((m: any) => ({
+      role: m.role,
+      content: typeof m.content === "string" ? (m.content.length > 600 ? m.content.slice(0, 570) + "…(обрезано)" : m.content) : m.content,
+      ...(m.tool_calls ? { tool_calls: m.tool_calls } : {}),
+      ...(m.tool_call_id ? { tool_call_id: m.tool_call_id } : {}),
+      ...(m.name ? { name: m.name } : {}),
+    }))
+    .slice(-20);
+}
+
+// ───── основной вызов ─────
+
+export async function handleAiChat(
+  ctx: BotContext,
+  userText: string
+): Promise<string | null> {
+  const cfg = providerConfig();
+  if (!cfg || !ctx.state.user) return null;
+
+  const dbUser = await getUserByTelegramId(ctx.state.user.telegramId);
+  if (!dbUser) return null;
+
+  const isAdmin = ctx.state.user.isAdmin;
+  const systemLang = dbUser.lang === "kk" ? "kk" : "ru";
+  const systemContent = isAdmin
+    ? ADMIN_SYSTEM
+    : systemLang === "kk"
+      ? `${CLIENT_SYSTEM}\nОтвечай клиенту ТОЛЬКО на казахском языке. Названия товаров/категорий оставляй как в базе.`
+      : CLIENT_SYSTEM;
+  const messages: Msg[] = [
+    { role: "system", content: systemContent },
+    ...(trimAiMessages(dbUser.aiConversation as any[])),
+    { role: "user", content: userText },
+  ];
+  const tools = isAdmin ? adminTools : clientTools;
+
+  let safety = 0;
+  while (safety++ < 6) {
+    let res: any;
+    try {
+      res = await fetch(`${cfg.baseUrl}/v1/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${cfg.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: cfg.model,
+          messages,
+          tools,
+          tool_choice: "auto",
+          temperature: 0.3,
+          max_tokens: 700,
+        }),
+        signal: AbortSignal.timeout(9_000),
+      }).then((r) => (r.ok ? r.json() : null));
+    } catch {
+      break;
+    }
+
+    const choice = res?.choices?.[0];
+    if (!choice) break;
+
+    const assistant = choice.message as Msg;
+    messages.push(assistant);
+
+    if (!assistant.tool_calls?.length) break;
+
+    for (const call of assistant.tool_calls) {
+      let args: any = {};
+      try { args = JSON.parse(call.function?.arguments ?? "{}"); } catch {}
+      const result = await execTool(call.function?.name ?? "", args, ctx);
+      messages.push({
+        role: "tool",
+        tool_call_id: call.id,
+        content: result,
+      });
+    }
+  }
+
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m.role === "assistant" && m.content) {
+      const toSave = messages.slice(1).slice(-20).map((m: any) => ({
+        role: m.role,
+        content: m.content,
+        ...(m.tool_calls ? { tool_calls: m.tool_calls } : {}),
+        ...(m.tool_call_id ? { tool_call_id: m.tool_call_id } : {}),
+        ...(m.name ? { name: m.name } : {}),
+      }));
+      await prisma.user
+        .update({ where: { id: dbUser.id }, data: { aiConversation: toSave } })
+        .catch(() => {});
+      return m.content as string;
+    }
+  }
+
+  return "Не удалось получить ответ. Попробуйте позже.";
+}

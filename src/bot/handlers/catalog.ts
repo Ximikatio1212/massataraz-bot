@@ -2,29 +2,39 @@ import { InlineKeyboard } from "grammy";
 import { BotContext } from "../middleware/auth";
 import { getActiveCategories } from "../../services/category.service";
 import { getActiveProductsByCategory } from "../../services/product.service";
+import { getUserByTelegramId } from "../../services/user.service";
 import { categoriesKeyboard } from "../keyboards/catalog";
 import { editText } from "../helpers";
 import { formatPrice } from "../../utils/formatting";
+import { t } from "../../i18n";
 
 export async function handleCatalogStart(ctx: BotContext) {
   if (!ctx.state.user) return;
+  const dbUser = await getUserByTelegramId(ctx.state.user.telegramId);
+  if (!dbUser) return;
+  const lang = dbUser.lang ?? "ru";
+
   const categories = await getActiveCategories();
 
   if (categories.length === 0) {
-    await editText(ctx, "🛍 <b>ФАРМАКОЛОГИЯ</b>\n\nПока нет доступных категорий.");
+    await editText(ctx, t(lang, "catalog_empty"));
     return;
   }
 
-  const text = "🛍 <b>ФАРМАКОЛОГИЯ</b>\n\nВыберите категорию:";
-  await editText(ctx, text, categoriesKeyboard(categories, "main:menu"));
+  const text = t(lang, "catalog_title");
+  await editText(ctx, text, categoriesKeyboard(categories, "main:menu", lang));
 }
 
 export async function handleCategoryView(ctx: BotContext, categoryId: number) {
   if (!ctx.state.user) return;
+  const dbUser = await getUserByTelegramId(ctx.state.user.telegramId);
+  if (!dbUser) return;
+  const lang = dbUser.lang ?? "ru";
+
   const products = await getActiveProductsByCategory(categoryId);
 
   if (products.length === 0) {
-    await editText(ctx, "🛍 В этой категории пока нет товаров.", categoriesKeyboard([], "catalog:start"));
+    await editText(ctx, t(lang, "category_empty"), categoriesKeyboard([], "catalog:start", lang));
     return;
   }
 
@@ -32,16 +42,16 @@ export async function handleCategoryView(ctx: BotContext, categoryId: number) {
     .map(
       (p) =>
         `💊 <b>${p.name}</b>\n💰 ${formatPrice(Number(p.price))}${
-          p.stock > 0 ? `\n📦 В наличии: ${p.stock} шт.` : "\n❌ Нет в наличии"
+          p.stock > 0 ? `\n${t(lang, "in_stock", { n: p.stock })}` : `\n${t(lang, "no_stock")}`
         }`
     )
     .join("\n\n");
 
-  const text = `📁 <b>Категория</b>\n\n${list}\n\n<b>Выберите товар:</b>`;
-  await editText(ctx, text, productListKeyboard(products));
+  const text = `${t(lang, "category_label")}\n\n${list}\n\n<b>${t(lang, "choose_product")}</b>`;
+  await editText(ctx, text, productListKeyboard(products, lang));
 }
 
-function productListKeyboard(products: { id: number; name: string; stock: number }[]) {
+function productListKeyboard(products: { id: number; name: string; stock: number }[], lang?: string) {
   const kb = new InlineKeyboard();
   products.forEach((p) => {
     kb.text(
@@ -50,6 +60,6 @@ function productListKeyboard(products: { id: number; name: string; stock: number
     );
     kb.row();
   });
-  kb.text("⬅️ Назад", "catalog:start");
+  kb.text(t(lang, "btn_back"), "catalog:start");
   return kb;
 }

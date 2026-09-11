@@ -21,19 +21,88 @@ export function createBot(): Bot<BotContext> {
     return handleCallback(ctx, data);
   });
 
-  bot.on("message:text", (ctx) => {
+  bot.on("message:text", async (ctx) => {
     if (ctx.message.text.startsWith("/")) return;
-    return handleTextMessage(ctx);
+    const consumed = await handleTextMessage(ctx);
+    if (!consumed) {
+      await handleAiOrMenu(ctx, ctx.message.text);
+    }
+    await deleteIncomingMessage(ctx);
   });
 
-  bot.on("message:photo", (ctx) => handleReceiptUpload(ctx).then(() => handleAdminPhoto(ctx)));
-  bot.on("message:document", (ctx) => handleReceiptUpload(ctx).then(() => handleAdminDocument(ctx)));
+  bot.on("message:photo", async (ctx) => {
+    const consumed = (await handleReceiptUpload(ctx)) || (await handleAdminPhoto(ctx));
+    if (!consumed) {
+      await handleAiOrMenu(ctx);
+    }
+    await deleteIncomingMessage(ctx);
+  });
+
+  bot.on("message:document", async (ctx) => {
+    const consumed = await handleReceiptUpload(ctx);
+    await handleAdminDocument(ctx);
+    if (!consumed) {
+      await handleAiOrMenu(ctx);
+    }
+    await deleteIncomingMessage(ctx);
+  });
 
   bot.catch((err) => {
     console.error("Bot error:", err.error);
   });
 
   return bot;
+}
+
+/**
+ * Свободное сообщение без активного сценария: отвечает ИИ-ассистент (если
+ * настроен), иначе просто показываем главное меню. Оба варианта рендерятся на
+ * canvas, поэтому панель всегда остаётся на виду.
+ */
+export async function handleAiOrMenu(ctx: BotContext, text?: string) {
+  if (!(await shouldReplyWithAi(ctx))) {
+    await startHandler(ctx);
+    return;
+  }
+  const { handleAiChat } = await import("../services/ai.service");
+  const isAdmin = ctx.state.user?.isAdmin ?? false;
+  const reply = await handleAiChat(ctx, text ?? "");
+  if (!reply) {
+    await startHandler(ctx);
+    return;
+  }
+  await startHandlerToRender(ctx, reply, isAdmin);
+}
+
+async function startHandlerToRender(ctx: BotContext, aiReply: string, isAdmin: boolean) {
+  const { renderText } = await import("./helpers");
+  const { mainMenuKeyboard } = await import("./keyboards/main");
+  const { getUserByTelegramId } = await import("../services/user.service");
+  let lang = "ru";
+  try {
+    const dbUser = ctx.state.user ? await getUserByTelegramId(ctx.state.user.telegramId) : null;
+    lang = dbUser?.lang ?? "ru";
+  } catch {}
+  await renderText(ctx, aiReply, mainMenuKeyboard(isAdmin, lang));
+}
+
+async function shouldReplyWithAi(ctx: BotContext): Promise<boolean> {
+  const { aiEnabled, getAiMode } = await import("../services/ai.service");
+  if (!aiEnabled()) return false;
+  const { getUserByTelegramId } = await import("../services/user.service");
+  const dbUser = ctx.state.user ? await getUserByTelegramId(ctx.state.user.telegramId) : null;
+  if (!dbUser) return false;
+  if (ctx.state.user?.isAdmin) return true;
+  return dbUser.aiMode;
+}
+
+// Удаляем сообщение, которое прислал пользователь (текст, фото, документ), чтобы
+// чат-панель не уезжала вверх и оставалась всегда на виду.
+async function deleteIncomingMessage(ctx: BotContext) {
+  const msg = ctx.message;
+  const chatId = ctx.chat?.id;
+  if (!msg || chatId == null) return;
+  await ctx.api.deleteMessage(chatId, msg.message_id).catch(() => {});
 }
 
 // Singleton в рамках одного warm-инстанса serverless-функции.

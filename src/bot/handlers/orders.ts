@@ -4,31 +4,24 @@ import { getUserByTelegramId } from "../../services/user.service";
 import { getUserOrders, countUserOrders, getOrderById } from "../../services/order.service";
 import { editText, answerAlert } from "../helpers";
 import { formatPrice, formatDate } from "../../utils/formatting";
+import { t } from "../../i18n";
 
 const PAGE_SIZE = 5;
 
-const STATUS_LABELS: Record<string, string> = {
-  pending_payment: "💤 Ожидает оплаты",
-  pending_verification: "🕐 Ожидает проверки",
-  paid: "✅ Оплачен",
-  processing: "🔵 В обработке",
-  shipped: "🚚 Отправлен",
-  completed: "✅ Завершён",
-  cancelled: "❌ Отменён",
-};
+function statusLabel(lang: string, status: string): string {
+  return t(lang, `status_${status}`);
+}
 
-const PAYMENT_LABELS: Record<string, string> = {
-  pending: "Ожидает оплаты",
-  pending_verification: "Ожидает проверки",
-  paid: "Оплачен",
-  rejected: "Отклонён",
-};
+function paymentLabel(lang: string, status: string): string {
+  return t(lang, `payment_${status}`);
+}
 
 export async function handleOrdersList(ctx: BotContext, page = 0) {
   if (!ctx.state.user) return;
   const user = ctx.state.user;
   const dbUser = await getUserByTelegramId(user.telegramId);
   if (!dbUser) return;
+  const lang = dbUser.lang ?? "ru";
 
   const [orders, total] = await Promise.all([
     getUserOrders(dbUser.id, page * PAGE_SIZE, PAGE_SIZE),
@@ -36,7 +29,7 @@ export async function handleOrdersList(ctx: BotContext, page = 0) {
   ]);
 
   if (orders.length === 0 && page === 0) {
-    await editText(ctx, "📦 <b>МОИ ЗАКАЗЫ</b>\n\nУ вас пока нет заказов.");
+    await editText(ctx, t(lang, "orders_empty"));
     return;
   }
 
@@ -44,16 +37,16 @@ export async function handleOrdersList(ctx: BotContext, page = 0) {
   const lines = orders.map((o) => {
     kb.text(`№${o.id} • ${formatPrice(Number(o.total))}`, `order:view:${o.id}`);
     kb.row();
-    return `№${o.id}\n💰 ${formatPrice(Number(o.total))}\n${STATUS_LABELS[o.status] ?? o.status}\n${PAYMENT_LABELS[o.paymentStatus] ?? o.paymentStatus}`;
+    return `№${o.id}\n💰 ${formatPrice(Number(o.total))}\n${statusLabel(lang, o.status)}\n${paymentLabel(lang, o.paymentStatus)}`;
   });
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const text = [
-    `📦 <b>МОИ ЗАКАЗЫ</b>`,
+    t(lang, "orders_title"),
     ``,
     ...lines,
     ``,
-    `📄 Страница ${page + 1} из ${totalPages} • Всего: ${total}`,
+    t(lang, "orders_page", { a: page + 1, b: totalPages, n: total }),
   ].join("\n\n");
 
   if (page > 0) kb.text("⬅️", `orders:list:${page - 1}`);
@@ -62,7 +55,7 @@ export async function handleOrdersList(ctx: BotContext, page = 0) {
     kb.text("➡️", `orders:list:${page + 1}`);
   }
   kb.row();
-  kb.text("⬅️ Главное меню", "main:menu");
+  kb.text(t(lang, "btn_back_main"), "main:menu");
 
   await editText(ctx, text, kb);
 }
@@ -72,16 +65,17 @@ export async function handleOrderView(ctx: BotContext, orderId: number) {
   const user = ctx.state.user;
   const dbUser = await getUserByTelegramId(user.telegramId);
   if (!dbUser) return;
+  const lang = dbUser.lang ?? "ru";
 
   const order = await getOrderById(orderId);
 
   // Users can ONLY see their own orders; admins can see any order.
   if (!order) {
-    await answerAlert(ctx, "❌ Заказ не найден.");
+    await answerAlert(ctx, t(lang, "order_not_found"));
     return;
   }
   if (!user.isAdmin && order.userId !== dbUser.id) {
-    await answerAlert(ctx, "❌ Заказ не найден или доступ запрещён.");
+    await answerAlert(ctx, t(lang, "order_denied"));
     return;
   }
 
@@ -94,23 +88,23 @@ export async function handleOrderView(ctx: BotContext, orderId: number) {
   const isAdmin = ctx.state.user.isAdmin;
 
   const text = [
-    `🧾 <b>ЗАКАЗ №${order.id}</b>`,
+    t(lang, "order_title", { id: order.id }),
     `📅 ${formatDate(order.createdAt)}`,
     ``,
-    `🛍 <b>Товары:</b>\n${items}`,
+    `${t(lang, "order_items")}\n${items}`,
     ``,
-    `💰 <b>Сумма: ${formatPrice(Number(order.total))}</b>`,
+    t(lang, "order_total", { total: formatPrice(Number(order.total)) }),
     ``,
-    `📍 <b>Адрес:</b> ${address || "-"}`,
-    `📞 <b>Телефон:</b> ${order.phone ?? "-"}`,
+    t(lang, "order_address", { addr: address || "-" }),
+    t(lang, "order_phone", { phone: order.phone ?? "-" }),
     ``,
-    `📦 <b>Статус:</b> ${STATUS_LABELS[order.status] ?? order.status}`,
-    `💳 <b>Оплата:</b> ${PAYMENT_LABELS[order.paymentStatus] ?? order.paymentStatus}`,
+    t(lang, "order_status", { status: statusLabel(lang, order.status) }),
+    t(lang, "order_payment", { payment: paymentLabel(lang, order.paymentStatus) }),
   ].join("\n");
 
   const kb = new InlineKeyboard();
   if (order.receiptUrl) {
-    kb.url("📎 Чек", order.receiptUrl);
+    kb.url(t(lang, "link_check"), order.receiptUrl);
     kb.row();
   } else if (order.receiptFileId && isAdmin) {
     kb.text("👁 Смотреть чек", `admin:receipt:show:${order.id}`);
@@ -127,7 +121,7 @@ export async function handleOrderView(ctx: BotContext, orderId: number) {
     kb.row();
     kb.text("⬅️ Назад", "admin:orders");
   } else {
-    kb.text("⬅️ Назад", "orders:list");
+    kb.text(t(lang, "btn_back"), "orders:list");
   }
 
   await editText(ctx, text, kb);

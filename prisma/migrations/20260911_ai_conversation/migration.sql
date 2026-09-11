@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "User" ADD COLUMN "aiConversation" JSONB;
+ALTER TABLE "User" ADD COLUMN "aiMode" BOOLEAN NOT NULL DEFAULT false;

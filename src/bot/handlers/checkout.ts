@@ -10,24 +10,26 @@ import { cartConfirmKeyboard, checkoutStartKeyboard } from "../keyboards/cart";
 import { editHostMessage, answerAlert } from "../helpers";
 import { formatPrice } from "../../utils/formatting";
 import { userFriendlyError } from "../../utils/errors";
-import { validateName, phoneSchema, addressSchema } from "../../utils/validation";
+import { validateName, validatePhone, validateAddress } from "../../utils/validation";
+import { t } from "../../i18n";
 
 export async function handleCheckoutStart(ctx: BotContext) {
   if (!ctx.state.user) return;
   const user = ctx.state.user;
   const dbUser = await getUserByTelegramId(user.telegramId);
   if (!dbUser) return;
+  const lang = dbUser.lang ?? "ru";
 
   const validation = await validateCartForOrder(dbUser.id);
   if (!validation.ok) {
-    await editHostMessage(ctx, getHostMessageId(ctx), userFriendlyError(validation.error ?? "GENERIC"));
+    await editHostMessage(ctx, getHostMessageId(ctx), userFriendlyError(validation.error ?? "GENERIC", lang));
     return;
   }
 
   const paymentPhone = process.env.PAYMENT_PHONE ?? "";
   const paymentDetails = process.env.PAYMENT_DETAILS ?? "";
   if (!paymentPhone && !paymentDetails) {
-    await editHostMessage(ctx, getHostMessageId(ctx), "⚠️ Реквизиты оплаты не настроены. Обратитесь к администратору.");
+    await editHostMessage(ctx, getHostMessageId(ctx), t(lang, "pay_not_configured"));
     return;
   }
 
@@ -36,7 +38,7 @@ export async function handleCheckoutStart(ctx: BotContext) {
   try {
     order = await createOrder(dbUser.id);
   } catch (e: any) {
-    await editHostMessage(ctx, getHostMessageId(ctx), userFriendlyError(e.message ?? "GENERIC"));
+    await editHostMessage(ctx, getHostMessageId(ctx), userFriendlyError(e.message ?? "GENERIC", lang));
     return;
   }
 
@@ -50,20 +52,20 @@ export async function handleCheckoutStart(ctx: BotContext) {
   });
 
   const text = [
-    `🧾 <b>ЗАКАЗ №${order.id}</b>`,
+    t(lang, "order_no", { id: order.id }),
     ``,
-    `💰 К оплате: ${formatPrice(Number(order.total))}`,
+    t(lang, "pay_amount", { total: formatPrice(Number(order.total)) }),
     ``,
-    `Для оплаты используйте следующие реквизиты:`,
+    t(lang, "pay_requisites_title"),
     ``,
-    `📱 Номер:\n${paymentPhone}`,
+    `${t(lang, "pay_number")}\n${paymentPhone}`,
     ``,
-    `💳 Реквизиты:\n${paymentDetails}`,
+    `${t(lang, "pay_details")}\n${paymentDetails}`,
     ``,
-    `⬇️ <b>Прикрепите чек</b> или нажмите «Отмена».`,
+    t(lang, "attach_check"),
   ].join("\n");
 
-  await editHostMessage(ctx, hostMessageId, text, checkoutStartKeyboard());
+  await editHostMessage(ctx, hostMessageId, text, checkoutStartKeyboard(lang));
 }
 
 export async function handleCheckoutReceipt(ctx: BotContext) {
@@ -71,11 +73,12 @@ export async function handleCheckoutReceipt(ctx: BotContext) {
   const user = ctx.state.user;
   const dbUser = await getUserByTelegramId(user.telegramId);
   if (!dbUser) return;
+  const lang = dbUser.lang ?? "ru";
 
   const state = await getState(dbUser.id);
   const payload: any = state?.payload ?? {};
   if (!payload.orderId) {
-    await editHostMessage(ctx, getHostMessageId(ctx), "❌ Сессия оформления устарела. Начните заново.", checkoutStartKeyboard());
+    await editHostMessage(ctx, getHostMessageId(ctx), t(lang, "session_expired"), checkoutStartKeyboard(lang));
     return;
   }
 
@@ -83,11 +86,7 @@ export async function handleCheckoutReceipt(ctx: BotContext) {
   payload.hostChatId = Number(ctx.chat?.id);
 
   await setState(dbUser.id, ConversationState.WAITING_RECEIPT, payload);
-  await editHostMessage(
-    ctx,
-    getHostMessageId(ctx),
-    `📎 Отправьте <b>чек об оплате</b> (фото или документ).\n\nПосле проверки администратором заказ будет обработан.`
-  );
+  await editHostMessage(ctx, getHostMessageId(ctx), t(lang, "send_receipt"));
 }
 
 export async function handleCheckoutData(ctx: BotContext) {
@@ -95,11 +94,12 @@ export async function handleCheckoutData(ctx: BotContext) {
   const user = ctx.state.user;
   const dbUser = await getUserByTelegramId(user.telegramId);
   if (!dbUser) return;
+  const lang = dbUser.lang ?? "ru";
 
   const state = await getState(dbUser.id);
   const payload: any = state?.payload ?? {};
   if (!payload.orderId) {
-    await editHostMessage(ctx, getHostMessageId(ctx), "❌ Сессия оформления устарела. Начните заново.", checkoutStartKeyboard());
+    await editHostMessage(ctx, getHostMessageId(ctx), t(lang, "session_expired"), checkoutStartKeyboard(lang));
     return;
   }
 
@@ -107,7 +107,7 @@ export async function handleCheckoutData(ctx: BotContext) {
   payload.hostChatId = Number(ctx.chat?.id);
 
   await setState(dbUser.id, ConversationState.WAITING_ORDER_NAME, payload);
-  await editHostMessage(ctx, getHostMessageId(ctx), `📝 Введите <b>ФИО</b>:`);
+  await editHostMessage(ctx, getHostMessageId(ctx), t(lang, "enter_fio"));
 }
 
 export async function processOrderText(ctx: BotContext, state: any, text: string) {
@@ -116,6 +116,7 @@ export async function processOrderText(ctx: BotContext, state: any, text: string
   const dbUser = await getUserByTelegramId(user.telegramId);
   if (!dbUser) return;
   if (!state) state = {};
+  const lang = dbUser.lang ?? "ru";
 
   const payload: any = { ...(state.payload ?? {}) };
 
@@ -123,61 +124,61 @@ export async function processOrderText(ctx: BotContext, state: any, text: string
 
   switch (state.state) {
     case ConversationState.WAITING_ORDER_NAME: {
-      const v = validateName(text, "ФИО");
+      const v = validateName(text, t(lang, "field_fio"), lang);
       if (!v.ok) return answerAlert(ctx, v.error);
       payload.fullName = v.value;
       await setState(dbUser.id, ConversationState.WAITING_ORDER_REGION, payload);
-      await editHostMessage(ctx, hostMessageId, `📝 <b>ФИО</b>: ${v.value}\n\n📍 Введите <b>область/регион</b>:`);
+      await editHostMessage(ctx, hostMessageId, `${t(lang, "fio_set", { v: v.value })}\n\n${t(lang, "enter_region")}`);
       return;
     }
 
     case ConversationState.WAITING_ORDER_REGION: {
-      const v = validateName(text, "Регион");
+      const v = validateName(text, t(lang, "field_region"), lang);
       if (!v.ok) return answerAlert(ctx, v.error);
       payload.region = v.value;
       await setState(dbUser.id, ConversationState.WAITING_ORDER_CITY, payload);
-      await editHostMessage(ctx, hostMessageId, `📍 <b>Регион</b>: ${v.value}\n\n🏙 Введите <b>город</b>:`);
+      await editHostMessage(ctx, hostMessageId, `${t(lang, "region_set", { v: v.value })}\n\n${t(lang, "enter_city")}`);
       return;
     }
 
     case ConversationState.WAITING_ORDER_CITY: {
-      const v = validateName(text, "Город");
+      const v = validateName(text, t(lang, "field_city"), lang);
       if (!v.ok) return answerAlert(ctx, v.error);
       payload.city = v.value;
       await setState(dbUser.id, ConversationState.WAITING_ORDER_ADDRESS, payload);
-      await editHostMessage(ctx, hostMessageId, `🏙 <b>Город</b>: ${v.value}\n\n🏠 Введите <b>адрес</b>:`);
+      await editHostMessage(ctx, hostMessageId, `${t(lang, "city_set", { v: v.value })}\n\n${t(lang, "enter_address")}`);
       return;
     }
 
     case ConversationState.WAITING_ORDER_ADDRESS: {
-      const r = addressSchema.safeParse(text.trim());
-      if (!r.success) return answerAlert(ctx, r.error.issues[0].message);
-      payload.address = r.data;
+      const r = validateAddress(text, lang);
+      if (!r.ok) return answerAlert(ctx, r.error);
+      payload.address = r.value;
       await setState(dbUser.id, ConversationState.WAITING_ORDER_PHONE, payload);
-      await editHostMessage(ctx, hostMessageId, `🏠 <b>Адрес</b>: ${r.data}\n\n📞 Введите <b>номер телефона</b>:`);
+      await editHostMessage(ctx, hostMessageId, `${t(lang, "address_set", { v: r.value })}\n\n${t(lang, "enter_phone")}`);
       return;
     }
 
     case ConversationState.WAITING_ORDER_PHONE: {
-      const r = phoneSchema.safeParse(text.trim());
-      if (!r.success) return answerAlert(ctx, r.error.issues[0].message);
-      payload.phone = r.data;
+      const r = validatePhone(text, lang);
+      if (!r.ok) return answerAlert(ctx, r.error);
+      payload.phone = r.value;
 
       const order = await getOrderById(Number(payload.orderId));
       if (!order || order.userId !== dbUser.id) {
         await resetState(dbUser.id);
-        await editHostMessage(ctx, hostMessageId, "❌ Заказ не найден. Начните оформление заново.");
+        await editHostMessage(ctx, hostMessageId, t(lang, "order_not_found_restart"));
         return;
       }
 
       // Keep state around but mark as review stage
       await setState(dbUser.id, ConversationState.WAITING_ORDER_PHONE, payload);
-      await editHostMessage(ctx, hostMessageId, buildOrderSummary(order, payload), cartConfirmKeyboard());
+      await editHostMessage(ctx, hostMessageId, buildOrderSummary(order, payload, lang), cartConfirmKeyboard(lang));
       return;
     }
 
     case ConversationState.WAITING_RECEIPT:
-      await editHostMessage(ctx, hostMessageId, `📎 Отправьте чек об оплате (фото или документ).`);
+      await editHostMessage(ctx, hostMessageId, t(lang, "send_receipt_short"));
       return;
 
     default:
@@ -185,27 +186,27 @@ export async function processOrderText(ctx: BotContext, state: any, text: string
   }
 }
 
-function buildOrderSummary(order: any, info: any) {
+function buildOrderSummary(order: any, info: any, lang: string) {
   const items = order.items
     .map((i: any) => `• ${i.productName} × ${i.quantity}`)
     .join("\n");
 
   return [
-    `📦 <b>ПРОВЕРКА ЗАКАЗА</b>`,
+    t(lang, "check_order"),
     ``,
-    `👤 <b>ФИО</b>\n${info.fullName}`,
+    `${t(lang, "label_fio")}\n${info.fullName}`,
     ``,
-    `📍 <b>Регион</b>\n${info.region}`,
+    `${t(lang, "label_region")}\n${info.region}`,
     ``,
-    `🏙 <b>Город</b>\n${info.city}`,
+    `${t(lang, "label_city")}\n${info.city}`,
     ``,
-    `🏠 <b>Адрес</b>\n${info.address}`,
+    `${t(lang, "label_addr")}\n${info.address}`,
     ``,
-    `📞 <b>Телефон</b>\n${info.phone}`,
+    `${t(lang, "label_phone")}\n${info.phone}`,
     ``,
-    `🛍 <b>Товары:</b>\n${items}`,
+    `${t(lang, "summary_items")}\n${items}`,
     ``,
-    `💰 <b>Сумма: ${formatPrice(Number(order.total))}</b>`,
+    t(lang, "summary_sum", { total: formatPrice(Number(order.total)) }),
   ].join("\n");
 }
 
@@ -214,13 +215,14 @@ export async function handleCheckoutConfirm(ctx: BotContext) {
   const user = ctx.state.user;
   const dbUser = await getUserByTelegramId(user.telegramId);
   if (!dbUser) return;
+  const lang = dbUser.lang ?? "ru";
 
   const state = await getState(dbUser.id);
   const payload: any = state?.payload ?? {};
   const hostMessageId = payload.hostMessageId ?? ctx.callbackQuery.message.message_id;
 
   if (!payload.orderId || !payload.fullName || !payload.phone) {
-    await editHostMessage(ctx, hostMessageId, "❌ Сессия оформления устарела. Начните заново.");
+    await editHostMessage(ctx, hostMessageId, t(lang, "session_expired"));
     return;
   }
 
@@ -228,7 +230,7 @@ export async function handleCheckoutConfirm(ctx: BotContext) {
   const order = await getOrderById(Number(payload.orderId));
   if (!order || order.userId !== dbUser.id) {
     await resetState(dbUser.id);
-    await editHostMessage(ctx, hostMessageId, "❌ Заказ не найден. Начните оформление заново.");
+    await editHostMessage(ctx, hostMessageId, t(lang, "order_not_found_restart"));
     return;
   }
 
@@ -236,7 +238,7 @@ export async function handleCheckoutConfirm(ctx: BotContext) {
   const validation = await validateCartForOrder(dbUser.id);
   if (!validation.ok) {
     await resetState(dbUser.id);
-    await editHostMessage(ctx, hostMessageId, userFriendlyError(validation.error ?? "GENERIC"));
+    await editHostMessage(ctx, hostMessageId, userFriendlyError(validation.error ?? "GENERIC", lang));
     return;
   }
 
@@ -260,7 +262,7 @@ export async function handleCheckoutConfirm(ctx: BotContext) {
     await editHostMessage(
       ctx,
       hostMessageId,
-      `✅ <b>Заказ №${order.id} подтверждён.</b>\n\nЧек получен, данные доставки сохранены.\n\nЗаказ отправлен на проверку.`
+      t(lang, "order_confirmed", { id: order.id })
     );
     return;
   }
@@ -271,11 +273,7 @@ export async function handleCheckoutConfirm(ctx: BotContext) {
     hostMessageId,
   });
 
-  await editHostMessage(
-    ctx,
-    hostMessageId,
-    `✅ Данные сохранены.\n\n📎 <b>Отправьте чек об оплате.</b>\n\nПосле проверки администратором заказ будет обработан.`
-  );
+  await editHostMessage(ctx, hostMessageId, t(lang, "data_saved_send_check"));
 }
 
 export async function handleCheckoutCancel(ctx: BotContext) {
@@ -283,6 +281,7 @@ export async function handleCheckoutCancel(ctx: BotContext) {
   const user = ctx.state.user;
   const dbUser = await getUserByTelegramId(user.telegramId);
   if (!dbUser) return;
+  const lang = dbUser.lang ?? "ru";
 
   const state = await getState(dbUser.id);
   const payload: any = state?.payload ?? {};
@@ -305,7 +304,7 @@ export async function handleCheckoutCancel(ctx: BotContext) {
   }
 
   await resetState(dbUser.id);
-  await editHostMessage(ctx, hostMessageId, "❌ Оформление отменено.");
+  await editHostMessage(ctx, hostMessageId, t(lang, "checkout_cancelled"));
 }
 
 export async function handleCheckoutEdit(ctx: BotContext) {
@@ -313,6 +312,7 @@ export async function handleCheckoutEdit(ctx: BotContext) {
   const user = ctx.state.user;
   const dbUser = await getUserByTelegramId(user.telegramId);
   if (!dbUser) return;
+  const lang = dbUser.lang ?? "ru";
 
   const state = await getState(dbUser.id);
   const payload: any = { ...((state?.payload ?? {}) as any) };
@@ -324,7 +324,7 @@ export async function handleCheckoutEdit(ctx: BotContext) {
   const hostMessageId = payload.hostMessageId ?? getHostMessageId(ctx);
 
   await setState(dbUser.id, ConversationState.WAITING_ORDER_NAME, clean);
-  await editHostMessage(ctx, hostMessageId, `📝 Введите <b>ФИО</b> заново:`);
+  await editHostMessage(ctx, hostMessageId, t(lang, "enter_fio_again"));
 }
 
 function getHostMessageId(ctx: BotContext): number | undefined {

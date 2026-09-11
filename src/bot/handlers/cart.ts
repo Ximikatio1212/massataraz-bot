@@ -12,17 +12,19 @@ import { cartKeyboard, cartItemKeyboard } from "../keyboards/cart";
 import { editText, answerAlert } from "../helpers";
 import { formatPrice } from "../../utils/formatting";
 import { userFriendlyError } from "../../utils/errors";
+import { t } from "../../i18n";
 
 export async function handleCartView(ctx: BotContext) {
   if (!ctx.state.user) return;
   const user = ctx.state.user;
   const dbUser = await getUserByTelegramId(user.telegramId);
   if (!dbUser) return;
+  const lang = dbUser.lang ?? "ru";
 
   const cart = await getCartSummary(dbUser.id);
 
   if (cart.items.length === 0) {
-    await editText(ctx, "🛒 <b>КОРЗИНА</b>\n\nВаша корзина пуста.");
+    await editText(ctx, t(lang, "cart_empty"));
     return;
   }
 
@@ -32,18 +34,18 @@ export async function handleCartView(ctx: BotContext) {
   });
 
   const text = [
-    `🛒 <b>КОРЗИНА</b>`,
+    t(lang, "cart_title"),
     ``,
     ...lines,
     ``,
     `───────────────`,
     ``,
-    `💰 <b>Итого: ${formatPrice(cart.total)}</b>`,
+    t(lang, "cart_total", { total: formatPrice(cart.total) }),
     ``,
-    `Нажмите на товар, чтобы изменить количество.`,
+    t(lang, "cart_hint"),
   ].join("\n");
 
-  await editText(ctx, text, cartKeyboard(dbUser.id, cart));
+  await editText(ctx, text, cartKeyboard(dbUser.id, cart, lang));
 }
 
 export async function handleCartItemView(ctx: BotContext, cartItemId: number) {
@@ -51,11 +53,12 @@ export async function handleCartItemView(ctx: BotContext, cartItemId: number) {
   const user = ctx.state.user;
   const dbUser = await getUserByTelegramId(user.telegramId);
   if (!dbUser) return;
+  const lang = dbUser.lang ?? "ru";
 
   const items = await getCart(dbUser.id);
   const raw = items.find((i) => i.id === cartItemId);
   if (!raw) {
-    await answerAlert(ctx, "❌ Позиция не найдена.");
+    await answerAlert(ctx, t(lang, "item_not_found"));
     return handleCartView(ctx);
   }
 
@@ -69,15 +72,15 @@ export async function handleCartItemView(ctx: BotContext, cartItemId: number) {
   const text = [
     `${icon} <b>${name}</b>`,
     ``,
-    `💰 Цена: ${formatPrice(price)} × ${qty} = <b>${formatPrice(subtotal)}</b>`,
-    stock !== null ? `📦 В наличии: ${stock} шт` : `📦 Состав курса`,
+    t(lang, "item_price_subtotal", { price: formatPrice(price), qty, subtotal: formatPrice(subtotal) }),
+    stock !== null ? t(lang, "item_in_stock", { n: stock }) : t(lang, "item_course_comp"),
     ``,
-    `Количество: <b>${qty}</b>`,
+    t(lang, "item_qty", { qty }),
   ]
     .filter((l) => l !== null)
     .join("\n");
 
-  await editText(ctx, text, cartItemKeyboard(cartItemId));
+  await editText(ctx, text, cartItemKeyboard(cartItemId, lang));
 }
 
 export async function handleCartInc(ctx: BotContext, cartItemId: number) {
@@ -85,12 +88,13 @@ export async function handleCartInc(ctx: BotContext, cartItemId: number) {
   const user = ctx.state.user;
   const dbUser = await getUserByTelegramId(user.telegramId);
   if (!dbUser) return;
+  const lang = dbUser.lang ?? "ru";
 
   try {
     await increaseCartItem(cartItemId, dbUser.id);
     await handleCartItemView(ctx, cartItemId);
   } catch (e: any) {
-    await answerAlert(ctx, userFriendlyError(e.message ?? "GENERIC"));
+    await answerAlert(ctx, userFriendlyError(e.message ?? "GENERIC", lang));
   }
 }
 
@@ -99,6 +103,7 @@ export async function handleCartDec(ctx: BotContext, cartItemId: number) {
   const user = ctx.state.user;
   const dbUser = await getUserByTelegramId(user.telegramId);
   if (!dbUser) return;
+  const lang = dbUser.lang ?? "ru";
 
   try {
     await decreaseCartItem(cartItemId, dbUser.id);
@@ -108,7 +113,7 @@ export async function handleCartDec(ctx: BotContext, cartItemId: number) {
     if (!stillExists) return handleCartView(ctx);
     await handleCartItemView(ctx, cartItemId);
   } catch (e: any) {
-    await answerAlert(ctx, userFriendlyError(e.message ?? "GENERIC"));
+    await answerAlert(ctx, userFriendlyError(e.message ?? "GENERIC", lang));
   }
 }
 
@@ -117,12 +122,13 @@ export async function handleCartDel(ctx: BotContext, cartItemId: number) {
   const user = ctx.state.user;
   const dbUser = await getUserByTelegramId(user.telegramId);
   if (!dbUser) return;
+  const lang = dbUser.lang ?? "ru";
 
   try {
     await deleteCartItem(cartItemId, dbUser.id);
     await handleCartView(ctx);
   } catch (e: any) {
-    await answerAlert(ctx, userFriendlyError(e.message ?? "GENERIC"));
+    await answerAlert(ctx, userFriendlyError(e.message ?? "GENERIC", lang));
   }
 }
 
@@ -131,7 +137,8 @@ export async function handleCartClear(ctx: BotContext) {
   const user = ctx.state.user;
   const dbUser = await getUserByTelegramId(user.telegramId);
   if (!dbUser) return;
+  const lang = dbUser.lang ?? "ru";
 
   await clearCart(dbUser.id);
-  await editText(ctx, "🧹 Корзина очищена.");
+  await editText(ctx, t(lang, "cart_cleared"));
 }

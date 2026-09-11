@@ -1,17 +1,24 @@
 import { InlineKeyboard } from "grammy";
+import { t } from "../../i18n";
 
-export function mainMenuKeyboard(isAdmin: boolean) {
+export function mainMenuKeyboard(isAdmin: boolean, lang?: string) {
   const kb = new InlineKeyboard();
 
   kb.row()
-    .text("🛍 Фармакология", "catalog:start")
-    .text("📚 Готовые связки", "courses:list")
+    .text(t(lang, "btn_catalog"), "catalog:start")
+    .text(t(lang, "btn_courses"), "courses:list")
     .row()
-    .text("🛒 Корзина", "cart:view")
-    .text("📦 Мои заказы", "orders:list");
+    .text(t(lang, "btn_cart"), "cart:view")
+    .text(t(lang, "btn_orders"), "orders:list")
+    .row()
+    .text(t(lang, "btn_consultant"), "assistant:start");
 
   if (isAdmin) {
-    kb.row().text("⚙️ Админ-панель", "admin:menu");
+    kb.row().text(t(lang, "btn_admin"), "admin:menu");
+  } else {
+    kb.row()
+      .text(t(lang, "btn_lang_ru"), "lang:ru")
+      .text(t(lang, "btn_lang_kk"), "lang:kk");
   }
 
   return kb;
@@ -30,6 +37,8 @@ export function adminMenuKeyboard() {
     .row()
     .text("👥 Клиенты", "admin:clients")
     .text("📊 Статистика", "admin:statistics")
+    .row()
+    .text("🤖 ИИ-ассистент", "assistant:start")
     .row()
     .text("⬅️ Главное меню", "main:menu");
 }

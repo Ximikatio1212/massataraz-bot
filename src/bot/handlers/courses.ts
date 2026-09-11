@@ -6,37 +6,45 @@ import { getUserByTelegramId } from "../../services/user.service";
 import { renderPhoto, editText, answerAlert } from "../helpers";
 import { formatPrice } from "../../utils/formatting";
 import { userFriendlyError } from "../../utils/errors";
+import { t, itemsWord } from "../../i18n";
 
 export async function handleCoursesList(ctx: BotContext) {
   if (!ctx.state.user) return;
+  const dbUser = await getUserByTelegramId(ctx.state.user.telegramId);
+  if (!dbUser) return;
+  const lang = dbUser.lang ?? "ru";
+
   const courses = await getActiveCourses();
 
   if (courses.length === 0) {
-    await editText(ctx, "📚 <b>ГОТОВЫЕ СВЯЗКИ</b>\n\nПока нет доступных курсов.");
+    await editText(ctx, t(lang, "courses_empty"));
     return;
   }
 
   const kb = new InlineKeyboard();
-  let text = "📚 <b>ГОТОВЫЕ СВЯЗКИ</b>\n\n";
+  let text = `${t(lang, "courses_title")}\n\n`;
 
   courses.forEach((course) => {
-    text += `🔥 <b>${course.name}</b>\n💊 ${course.items.length} товар${
-      course.items.length === 1 ? "" : course.items.length < 5 ? "а" : "ов"
-    }\n💰 ${formatPrice(Number(course.price))}\n\n`;
+    const word = itemsWord(lang, course.items.length);
+    text += `🔥 <b>${course.name}</b>\n💊 ${course.items.length} ${word}\n💰 ${formatPrice(Number(course.price))}\n\n`;
     kb.text(`🔥 ${course.name}`, `course:view:${course.id}`);
     kb.row();
   });
 
-  kb.text("⬅️ Назад", "main:menu");
+  kb.text(t(lang, "btn_back"), "main:menu");
   await editText(ctx, text, kb);
 }
 
 export async function handleCourseView(ctx: BotContext, courseId: number) {
   if (!ctx.state.user) return;
+  const dbUser = await getUserByTelegramId(ctx.state.user.telegramId);
+  if (!dbUser) return;
+  const lang = dbUser.lang ?? "ru";
+
   const course = await getCourseById(courseId);
 
   if (!course || !course.isActive) {
-    await answerAlert(ctx, "❌ Курс не найден или недоступен.");
+    await answerAlert(ctx, t(lang, "course_not_found"));
     return;
   }
 
@@ -45,21 +53,21 @@ export async function handleCourseView(ctx: BotContext, courseId: number) {
     .join("\n");
 
   const kb = new InlineKeyboard()
-    .text("🛒 Добавить в корзину", `course:add:${course.id}`)
+    .text(t(lang, "btn_add_course_cart"), `course:add:${course.id}`)
     .row()
-    .text("🛒 Корзина", "cart:view")
+    .text(t(lang, "btn_cart"), "cart:view")
     .row()
-    .text("⬅️ Назад", "courses:list");
+    .text(t(lang, "btn_back"), "courses:list");
 
   const text = [
     `🔥 <b>${course.name}</b>`,
     ``,
     course.description ?? "",
     ``,
-    `📦 <b>В комплекте:</b>`,
+    t(lang, "in_pack"),
     components,
     ``,
-    `💰 Цена курса: ${formatPrice(Number(course.price))}`,
+    t(lang, "course_price", { price: formatPrice(Number(course.price)) }),
   ].join("\n");
 
   const photo = resolveImageUrl(course.imageUrl);
@@ -82,13 +90,14 @@ export async function handleCourseAdd(ctx: BotContext, courseId: number, quantit
   const user = ctx.state.user;
   const dbUser = await getUserByTelegramId(user.telegramId);
   if (!dbUser) return;
+  const lang = dbUser.lang ?? "ru";
 
   try {
     await addCourseToCart(dbUser.id, courseId, quantity);
-    await answerAlert(ctx, "✅ Курс добавлен в корзину");
+    await answerAlert(ctx, t(lang, "course_added"));
     const msg = ctx.callbackQuery?.message as any;
     if (msg?.caption != null) await ctx.deleteMessage().catch(() => {});
   } catch (e: any) {
-    await answerAlert(ctx, userFriendlyError(e.message ?? "GENERIC"));
+    await answerAlert(ctx, userFriendlyError(e.message ?? "GENERIC", lang));
   }
 }
