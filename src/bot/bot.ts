@@ -8,7 +8,27 @@ export function createBot(): Bot<BotContext> {
   const token = process.env.BOT_TOKEN;
   if (!token) throw new Error("BOT_TOKEN is not set");
 
-  const bot = new Bot<BotContext>(token);
+  // Работаем в webhook-режиме: bot.init() (getMe) на старте из Lambda мог висеть
+  // до 30с на первом исходящем HTTPS-запросе к api.telegram.org. Неизменный
+  // botInfo известен и задаётся сразу, без сетевого вызова.
+  const bot = new Bot<BotContext>(token, {
+    botInfo: {
+      id: Number(token.split(":")[0]),
+      is_bot: true,
+      first_name: "MASSA TARAZ",
+      username: "massashop_bot",
+      can_join_groups: true,
+      can_read_all_group_messages: false,
+      supports_inline_queries: false,
+      supports_guest_queries: false,
+      can_connect_to_business: false,
+      has_main_web_app: false,
+      has_topics_enabled: false,
+      allows_users_to_create_topics: false,
+      can_manage_bots: false,
+      supports_join_request_queries: false,
+    },
+  });
   setBotInstance(bot);
 
   bot.use(authMiddleware);
