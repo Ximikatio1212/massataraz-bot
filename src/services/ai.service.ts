@@ -278,6 +278,7 @@ interface Msg {
   content: string | null;
   tool_calls?: any[];
   tool_call_id?: string;
+  name?: string;
 }
 
 function cleanToolCalls(tc: any[]): any[] {
@@ -319,6 +320,31 @@ export function clampHistoryToCleanEnd(msgs: any[]): Msg[] {
   return out;
 }
 
+/**
+ * Groq (harmony-токенайзер) падает с 400 «Tools should have a name!», если у
+ * tool-сообщения нет поля `name`. Восстанавливаем имя из предшествующего
+ * assistant-сообщения по tool_call_id; нераспознанные tool-сообщения отбрасываем.
+ */
+export function normalizeToolMessages(msgs: Msg[]): Msg[] {
+  const names = new Map<string, string>();
+  const out: Msg[] = [];
+  for (const m of msgs) {
+    if (m.role === "assistant" && m.tool_calls?.length) {
+      for (const c of m.tool_calls) {
+        if (c?.id && c?.function?.name) names.set(String(c.id), String(c.function.name));
+      }
+    }
+    if (m.role === "tool" && !m.name) {
+      const nm = m.tool_call_id ? names.get(String(m.tool_call_id)) : undefined;
+      if (!nm) continue;
+      out.push({ ...m, name: nm });
+      continue;
+    }
+    out.push(m);
+  }
+  return out;
+}
+
 // ───── основной вызов ─────
 
 export async function handleAiChat(
@@ -343,11 +369,12 @@ export async function handleAiChat(
   // Клиентам держим лишь свежий контекст (пара последних реплик), чтобы ответ
   // всегда относился к последнему вопросу, а не к старой теме из истории.
   const history = clampHistoryToCleanEnd(dbUser.aiConversation as any[]);
-  const messages: Msg[] = [
+  let messages: Msg[] = [
     { role: "system", content: systemContent },
     ...(isAdmin ? history.slice(-10) : history.slice(-6)),
     { role: "user", content: userText },
   ];
+  messages = normalizeToolMessages(messages);
   const tools = isAdmin ? adminTools : clientTools;
 
   // Индекс, с которого начинаются сообщения данного вызова: цикл сохранения
@@ -411,6 +438,7 @@ export async function handleAiChat(
       messages.push({
         role: "tool",
         tool_call_id: call.id,
+        name: call.function?.name,
         content: result,
       });
     }

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { trimAiMessages } from "../src/services/ai.service";
+import { trimAiMessages, normalizeToolMessages } from "../src/services/ai.service";
 
 test("trimAiMessages: truncates long tool content", () => {
   const input = [
@@ -43,4 +43,34 @@ test("trimAiMessages: preserves tool_calls metadata", () => {
   const out = trimAiMessages(input);
   assert.equal(out[0].tool_calls?.length, 1);
   assert.equal(out[1].tool_call_id, "call_1");
+});
+
+test("normalizeToolMessages: добавляет name tool-сообщению из предшествующего вызова", () => {
+  const out = normalizeToolMessages([
+    {
+      role: "assistant",
+      content: null,
+      tool_calls: [{ id: "call_1", type: "function", function: { name: "list_products", arguments: "{}" } }],
+    },
+    { role: "tool", content: "[]", tool_call_id: "call_1" },
+    { role: "user", content: "спасибо" },
+  ]);
+  const tool = out.find((m) => m.role === "tool")!;
+  assert.equal(tool.name, "list_products");
+});
+
+test("normalizeToolMessages: отбрасывает tool-сообщения без распознаваемого вызова", () => {
+  const out = normalizeToolMessages([
+    { role: "assistant", content: "ок", tool_calls: [{ id: "call_x", type: "function", function: { name: "get_order_status", arguments: "{}" } }] },
+    { role: "tool", content: "[]", tool_call_id: "call_unknown" },
+    { role: "user", content: "далее" },
+  ]);
+  assert.equal(out.filter((m) => m.role === "tool").length, 0);
+  assert.equal(out.length, 2);
+});
+
+test("normalizeToolMessages: не трогает сообщения с явным name", () => {
+  const out = normalizeToolMessages([{ role: "tool", content: "x", tool_call_id: "call_9", name: "list_categories" }]);
+  assert.equal(out.length, 1);
+  assert.equal(out[0].name, "list_categories");
 });
