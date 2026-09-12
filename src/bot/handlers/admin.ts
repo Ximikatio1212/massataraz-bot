@@ -211,6 +211,11 @@ export async function handleAdminStatistics(ctx: BotContext) {
 /* Cancel                                                              */
 /* ------------------------------------------------------------------ */
 
+/** Кнопка отмены для промптов мастеров (twins к текстовой «отмена»). */
+function cancelKb(): InlineKeyboard {
+  return new InlineKeyboard().text("❌ Отмена", "cancel:current");
+}
+
 export async function handleCancelCurrent(ctx: BotContext) {
   if (!ctx.state.user) return;
   const user = ctx.state.user;
@@ -305,10 +310,13 @@ async function deleteObjectExecute(ctx: BotContext, kind: "product" | "category"
   if (!result.ok) {
     return answerAlert(ctx, userFriendlyError(result.error ?? "UPDATE_FAILED"));
   }
-  await editText(ctx, `🗑 <b>Удалено.</b>`);
-  if (kind === "product") return handleAdminProductList(ctx, 0);
-  if (kind === "category") return handleAdminCategoryList(ctx, 0);
-  return handleAdminCourseList(ctx, 0);
+  // После удаления сразу показываем админ-меню (вместо списка), чтобы
+  // админ не терялся — один editMessageText и фидбек «Удалено», и меню.
+  await editText(
+    ctx,
+    "🗑 <b>Удалено.</b>\n\n⚙️ <b>АДМИН-ПАНЕЛЬ</b>",
+    adminMenuKeyboard()
+  );
 }
 
 export async function handleAdminProductDelete(ctx: BotContext, id: number, yes?: boolean) {
@@ -523,7 +531,7 @@ export async function handleAdminProductCreateCommand(ctx: BotContext) {
   if (!dbUser) return;
   await resetState(dbUser.id);
   await setState(dbUser.id, ConversationState.WAITING_PRODUCT_NAME, {});
-  await replyText(ctx, `📦 <b>ДОБАВЛЕНИЕ ТОВАРА</b>\n\n1️⃣ Введите <b>название</b> товара:`);
+  await replyText(ctx, `📦 <b>ДОБАВЛЕНИЕ ТОВАРА</b>\n\n1️⃣ Введите <b>название</b> товара:`, cancelKb());
 }
 
 export async function handleAdminProductCreateCat(ctx: BotContext, categoryId: number) {
@@ -543,7 +551,7 @@ export async function handleAdminProductCreateCat(ctx: BotContext, categoryId: n
 
   payload.categoryId = categoryId;
   await setState(dbUser.id, ConversationState.WAITING_PRODUCT_STOCK, payload);
-  await replyText(ctx, `5️⃣ Введите <b>количество на складе</b> (целое число):`);
+  await replyText(ctx, `5️⃣ Введите <b>количество на складе</b> (целое число):`, cancelKb());
 }
 
 export async function handleAdminProductCreateNoImage(ctx: BotContext) {
@@ -653,7 +661,7 @@ export async function handleAdminCategoryCreateCommand(ctx: BotContext) {
   if (!dbUser) return;
   await resetState(dbUser.id);
   await setState(dbUser.id, ConversationState.WAITING_CATEGORY_NAME, {});
-  await replyText(ctx, `📁 <b>СОЗДАНИЕ КАТЕГОРИИ</b>\n\n1️⃣ Введите <b>название</b> категории:`);
+  await replyText(ctx, `📁 <b>СОЗДАНИЕ КАТЕГОРИИ</b>\n\n1️⃣ Введите <b>название</b> категории:`, cancelKb());
 }
 
 export async function handleAdminCategoryCreateNoImage(ctx: BotContext) {
@@ -731,7 +739,7 @@ export async function handleAdminCourseCreateCommand(ctx: BotContext) {
   if (!dbUser) return;
   await resetState(dbUser.id);
   await setState(dbUser.id, ConversationState.WAITING_COURSE_NAME, { items: [] });
-  await replyText(ctx, `📚 <b>СОЗДАНИЕ КУРСА</b>\n\n1️⃣ Введите <b>название</b> курса:`);
+  await replyText(ctx, `📚 <b>СОЗДАНИЕ КУРСА</b>\n\n1️⃣ Введите <b>название</b> курса:`, cancelKb());
 }
 
 export async function handleAdminCourseCreateAddItem(ctx: BotContext) {
@@ -769,7 +777,7 @@ export async function handleAdminCourseCreateItem(ctx: BotContext, productId: nu
   const payload: any = { ...((state?.payload ?? {}) as any) };
   payload.addingProductId = productId;
   await setState(dbUser.id, ConversationState.WAITING_COURSE_ITEMS, payload);
-  await replyText(ctx, `Введите <b>количество</b> этого товара в комплекте:`);
+  await replyText(ctx, `Введите <b>количество</b> этого товара в комплекте:`, cancelKb());
 }
 
 export async function handleAdminCourseCreateItemConfirm(ctx: BotContext) {
@@ -936,7 +944,7 @@ export async function handleAdminAddCourseItem(ctx: BotContext, courseId: number
     editCourseId: courseId,
     addingProductId: productId,
   });
-  await replyText(ctx, `Введите <b>количество</b> товара в комплекте:`);
+  await replyText(ctx, `Введите <b>количество</b> товара в комплекте:`, cancelKb());
 }
 
 export async function handleAdminAddCourseItemConfirm(ctx: BotContext, courseId: number) {
@@ -1027,7 +1035,7 @@ export async function handleAdminProductEdit(ctx: BotContext, field: string, pro
     return;
   }
 
-  await replyText(ctx, prompts[field]);
+  await replyText(ctx, prompts[field], cancelKb());
 }
 
 export async function handleAdminCategoryEdit(ctx: BotContext, field: string, categoryId: number) {
@@ -1060,7 +1068,7 @@ export async function handleAdminCategoryEdit(ctx: BotContext, field: string, ca
     );
     return;
   }
-  await replyText(ctx, prompts[field]);
+  await replyText(ctx, prompts[field], cancelKb());
 }
 
 export async function handleAdminCourseEdit(ctx: BotContext, field: string, courseId: number) {
@@ -1095,7 +1103,7 @@ export async function handleAdminCourseEdit(ctx: BotContext, field: string, cour
     );
     return;
   }
-  await replyText(ctx, prompts[field]);
+  await replyText(ctx, prompts[field], cancelKb());
 }
 
 /* ------------------------------------------------------------------ */
@@ -1145,9 +1153,9 @@ export async function processAdminText(ctx: BotContext, state: any, text: string
         await editText(ctx, "✅ Цена обновлена.");
         return handleAdminProductView(ctx, Number(payload.editProductId));
       }
-      payload.price = v.value;
+payload.price = v.value;
       await setState(dbUser.id, ConversationState.WAITING_PRODUCT_DESCRIPTION, payload);
-      await replyText(ctx, `3️⃣ Введите <b>описание</b> (или «-» для пустого):`);
+      await replyText(ctx, `2️⃣ Введите <b>цену</b> товара (тенге):`, cancelKb());
       return;
     }
 
@@ -1223,7 +1231,7 @@ if (payload.editProductId) {
       }
       payload.name = v.value;
       await setState(dbUser.id, ConversationState.WAITING_CATEGORY_DESCRIPTION, payload);
-      await replyText(ctx, `2️⃣ Введите <b>описание</b> категории (или «-» для пустого):`);
+      await replyText(ctx, `2️⃣ Введите <b>описание</b> категории (или «-» для пустого):`, cancelKb());
       return;
     }
 
@@ -1262,7 +1270,7 @@ if (payload.editProductId) {
       }
       payload.name = v.value;
       await setState(dbUser.id, ConversationState.WAITING_COURSE_DESCRIPTION, payload);
-      await replyText(ctx, `2️⃣ Введите <b>описание</b> курса (или «-» для пустого):`);
+      await replyText(ctx, `2️⃣ Введите <b>описание</b> курса (или «-» для пустого):`, cancelKb());
       return;
     }
 
@@ -1276,7 +1284,7 @@ if (payload.editProductId) {
       }
       payload.name = payload.name ?? "";
       await setState(dbUser.id, ConversationState.WAITING_COURSE_PRICE, payload);
-      await replyText(ctx, `3️⃣ Введите <b>цену</b> курса (тенге):`);
+      await replyText(ctx, `3️⃣ Введите <b>цену</b> курса (тенге):`, cancelKb());
       return;
     }
 
@@ -1298,6 +1306,8 @@ if (payload.editProductId) {
           .text("➕ Добавить товар", "admin:course:create:additem")
           .row()
           .text("✅ Завершить состав", "admin:course:create:itemconfirm")
+          .row()
+          .text("❌ Отмена", "cancel:current")
       );
       return;
     }

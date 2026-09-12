@@ -143,6 +143,7 @@ export async function updateOrder(
     fullName?: string;
     region?: string;
     city?: string;
+    postalCode?: string;
     address?: string;
     phone?: string;
   }

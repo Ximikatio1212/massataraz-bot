@@ -4,7 +4,7 @@ import { getActiveCategories } from "../../services/category.service";
 import { getActiveProductsByCategory } from "../../services/product.service";
 import { getUserByTelegramId } from "../../services/user.service";
 import { categoriesKeyboard } from "../keyboards/catalog";
-import { editText } from "../helpers";
+import { editText, backToMenuKb } from "../helpers";
 import { formatPrice } from "../../utils/formatting";
 import { t } from "../../i18n";
 
@@ -17,7 +17,7 @@ export async function handleCatalogStart(ctx: BotContext) {
   const categories = await getActiveCategories();
 
   if (categories.length === 0) {
-    await editText(ctx, t(lang, "catalog_empty"));
+    await editText(ctx, t(lang, "catalog_empty"), backToMenuKb(lang));
     return;
   }
 

@@ -9,7 +9,7 @@ import {
 } from "../../services/cart.service";
 import { getUserByTelegramId } from "../../services/user.service";
 import { cartKeyboard, cartItemKeyboard } from "../keyboards/cart";
-import { editText, answerAlert } from "../helpers";
+import { editText, answerAlert, backToMenuKb } from "../helpers";
 import { formatPrice } from "../../utils/formatting";
 import { userFriendlyError } from "../../utils/errors";
 import { t } from "../../i18n";
@@ -24,7 +24,7 @@ export async function handleCartView(ctx: BotContext) {
   const cart = await getCartSummary(dbUser.id);
 
   if (cart.items.length === 0) {
-    await editText(ctx, t(lang, "cart_empty"));
+    await editText(ctx, t(lang, "cart_empty"), backToMenuKb(lang));
     return;
   }
 
@@ -137,8 +137,9 @@ export async function handleCartClear(ctx: BotContext) {
   const user = ctx.state.user;
   const dbUser = await getUserByTelegramId(user.telegramId);
   if (!dbUser) return;
-  const lang = dbUser.lang ?? "ru";
 
   await clearCart(dbUser.id);
-  await editText(ctx, t(lang, "cart_cleared"));
+  // Рендерим пустую корзину с кнопкой «Главное меню», чтобы кнопка
+  // «Очистить корзину» не уводила экран в тупик без клавиатуры.
+  await handleCartView(ctx);
 }

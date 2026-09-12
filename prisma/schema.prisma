@@ -58,6 +58,7 @@ enum ConversationState {
   WAITING_ORDER_REGION
   WAITING_ORDER_CITY
   WAITING_ORDER_ADDRESS
+  WAITING_ORDER_POSTAL
   WAITING_ORDER_PHONE
   WAITING_RECEIPT
 
@@ -198,6 +199,7 @@ model Order {
   fullName          String?
   region            String?
   city              String?
+  postalCode        String?
   address           String?
   phone             String?
   receiptUrl        String?

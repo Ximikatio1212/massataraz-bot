@@ -23,6 +23,7 @@ function buildOrderText(order: any): string {
     .join("\n");
 
   const address = [order.region, order.city, order.address].filter(Boolean).join(", ");
+  const postal = order.postalCode ? `\n🔢 <b>Индекс:</b>\n${order.postalCode}` : "";
 
   return [
     `🔔 <b>НОВЫЙ ЗАКАЗ #${order.id}</b>`,
@@ -31,7 +32,7 @@ function buildOrderText(order: any): string {
     ``,
     `📞 <b>Телефон:</b>\n${order.phone ?? "-"}`,
     ``,
-    `📍 <b>Адрес:</b>\n${address || "-"}`,
+    `📍 <b>Адрес:</b>\n${address || "-"}${postal}`,
     ``,
     `🛍 <b>Состав:</b>\n${items}`,
     ``,

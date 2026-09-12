@@ -99,3 +99,15 @@ export function validateAddress(
   if (v.length > 300) return { ok: false, error: t(lang, "addr_long") };
   return { ok: true, value: v };
 }
+
+const postalRegex = /^[A-Za-z0-9][A-Za-z0-9\-\s]{0,9}$/;
+
+export function validatePostal(
+  input: string,
+  lang?: string
+): { ok: true; value: string } | { ok: false; error: string } {
+  const v = input.trim();
+  if (v.length < 3 || v.length > 10) return { ok: false, error: t(lang, "postal_invalid") };
+  if (!postalRegex.test(v)) return { ok: false, error: t(lang, "postal_invalid") };
+  return { ok: true, value: v };
+}

@@ -10,7 +10,7 @@ import { cartConfirmKeyboard, checkoutStartKeyboard } from "../keyboards/cart";
 import { editHostMessage, answerAlert } from "../helpers";
 import { formatPrice } from "../../utils/formatting";
 import { userFriendlyError } from "../../utils/errors";
-import { validateName, validatePhone, validateAddress } from "../../utils/validation";
+import { validateName, validatePhone, validateAddress, validatePostal } from "../../utils/validation";
 import { t } from "../../i18n";
 
 export async function handleCheckoutStart(ctx: BotContext) {
@@ -154,8 +154,17 @@ export async function processOrderText(ctx: BotContext, state: any, text: string
       const r = validateAddress(text, lang);
       if (!r.ok) return answerAlert(ctx, r.error);
       payload.address = r.value;
+      await setState(dbUser.id, ConversationState.WAITING_ORDER_POSTAL, payload);
+      await editHostMessage(ctx, hostMessageId, `${t(lang, "address_set", { v: r.value })}\n\n${t(lang, "enter_postal")}`);
+      return;
+    }
+
+    case ConversationState.WAITING_ORDER_POSTAL: {
+      const p = validatePostal(text, lang);
+      if (!p.ok) return answerAlert(ctx, p.error);
+      payload.postalCode = p.value;
       await setState(dbUser.id, ConversationState.WAITING_ORDER_PHONE, payload);
-      await editHostMessage(ctx, hostMessageId, `${t(lang, "address_set", { v: r.value })}\n\n${t(lang, "enter_phone")}`);
+      await editHostMessage(ctx, hostMessageId, `${t(lang, "postal_set", { v: p.value })}\n\n${t(lang, "enter_phone")}`);
       return;
     }
 
@@ -199,6 +208,8 @@ function buildOrderSummary(order: any, info: any, lang: string) {
     `${t(lang, "label_region")}\n${info.region}`,
     ``,
     `${t(lang, "label_city")}\n${info.city}`,
+    ``,
+    `${t(lang, "label_postal")}\n${info.postalCode ?? "-"}`,
     ``,
     `${t(lang, "label_addr")}\n${info.address}`,
     ``,
@@ -246,6 +257,7 @@ export async function handleCheckoutConfirm(ctx: BotContext) {
     fullName: payload.fullName,
     region: payload.region,
     city: payload.city,
+    postalCode: payload.postalCode,
     address: payload.address,
     phone: payload.phone,
   });

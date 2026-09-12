@@ -3,6 +3,7 @@ import { InlineKeyboard } from "grammy";
 import { getUserByTelegramId } from "../services/user.service";
 import { getCanvas, saveCanvas } from "../services/state.service";
 import { mark } from "../utils/diag";
+import { t } from "../i18n";
 
 type RenderOpts = {
   parse_mode: "HTML";
@@ -195,4 +196,69 @@ export function safeText(text: string): string {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
+}
+
+/**
+ * Клавиатура-«заглушка» для пустых экранов (нет заказов/категорий и т.п.):
+ * единственная кнопка возврата в главное меню, чтобы не заводить пользователя
+ * в тупик.
+ */
+export function backToMenuKb(lang: string | null | undefined): InlineKeyboard {
+  return new InlineKeyboard().text(t(lang, "btn_back_main"), "main:menu");
+}
+
+/**
+ * Редактирует ТЕКУЩЕЕ нажатое сообщение (тот самый экран, с которого нажали
+ * кнопку), не покидая его: для медиа-сообщения — caption, иначе — текст.
+ * Это безопасный первый вызов для webhook-reply, поэтому подходит для действий
+ * «остаться здесь» (например, «добавить в корзину»).
+ * Возвращает true при успехе (это был первый вызов апдейта).
+ */
+export async function editCurrentScreen(
+  ctx: BotContext,
+  text: string,
+  keyboard?: InlineKeyboard
+): Promise<boolean> {
+  const chatId = ctx.chat?.id;
+  const currentId = ctx.callbackQuery?.message?.message_id;
+  if (chatId == null || currentId == null) return false;
+
+  const cbMsg = ctx.callbackQuery?.message as any;
+  const isMedia =
+    !!cbMsg &&
+    (Array.isArray(cbMsg.photo) ||
+      !!cbMsg.document ||
+      !!cbMsg.video ||
+      !!cbMsg.audio ||
+      !!cbMsg.voice ||
+      !!cbMsg.sticker ||
+      !!cbMsg.animation ||
+      !!cbMsg.video_note);
+
+  const opts = buildOpts(keyboard);
+  try {
+    if (isMedia) {
+      await ctx.api.editMessageCaption(chatId, currentId, { ...opts, caption: text });
+    } else {
+      await ctx.api.editMessageText(chatId, currentId, text, opts);
+    }
+    return true;
+  } catch (e) {
+    console.log("EDIT-CURRENT fail", String(e));
+    mark(`editCurrent:fail ${String(e).slice(0, 120)}`);
+    return false;
+  }
+}
+
+/**
+ * Тот же фидбек, но по-надёжному: сначала пробуем отредактировать текущий
+ * экран; если не получилось — рендерим заметку новым сообщением.
+ */
+export async function editCurrentOrReply(
+  ctx: BotContext,
+  text: string,
+  keyboard?: InlineKeyboard
+) {
+  const ok = await editCurrentScreen(ctx, text, keyboard);
+  if (!ok) await renderText(ctx, text, keyboard);
 }

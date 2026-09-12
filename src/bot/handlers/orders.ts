@@ -2,7 +2,7 @@ import { InlineKeyboard } from "grammy";
 import { BotContext } from "../middleware/auth";
 import { getUserByTelegramId } from "../../services/user.service";
 import { getUserOrders, countUserOrders, getOrderById } from "../../services/order.service";
-import { editText, answerAlert } from "../helpers";
+import { editText, answerAlert, backToMenuKb } from "../helpers";
 import { formatPrice, formatDate } from "../../utils/formatting";
 import { t } from "../../i18n";
 
@@ -29,7 +29,7 @@ export async function handleOrdersList(ctx: BotContext, page = 0) {
   ]);
 
   if (orders.length === 0 && page === 0) {
-    await editText(ctx, t(lang, "orders_empty"));
+    await editText(ctx, t(lang, "orders_empty"), backToMenuKb(lang));
     return;
   }
 
@@ -96,6 +96,7 @@ export async function handleOrderView(ctx: BotContext, orderId: number) {
     t(lang, "order_total", { total: formatPrice(Number(order.total)) }),
     ``,
     t(lang, "order_address", { addr: address || "-" }),
+    ...(order.postalCode ? [t(lang, "order_postal", { code: order.postalCode })] : []),
     t(lang, "order_phone", { phone: order.phone ?? "-" }),
     ``,
     t(lang, "order_status", { status: statusLabel(lang, order.status) }),

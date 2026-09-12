@@ -82,7 +82,9 @@ export function createBot(): Bot<BotContext> {
     if (!consumed) {
       await handleAiOrMenu(ctx, ctx.message.text);
     }
-    await deleteIncomingMessage(ctx);
+    // Текстовые сообщения клиента НЕ удаляем: вопрос консультанту должен
+    // оставаться в чате (удаление вводило клиента в заблуждение, что его
+    // сообщение «исчезло», хотя ответ ещё готовился).
   });
 
   bot.on("message:photo", async (ctx) => {

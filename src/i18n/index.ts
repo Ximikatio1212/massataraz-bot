@@ -45,6 +45,7 @@ const DICT: Record<Lang, Record<string, string>> = {
     product_added: "✅ Товар добавлен в корзину",
     price_label: "💰 Цена: {price}",
     product_no_stock: "❌ Товара сейчас нет в наличии",
+    cart_count_note: "\n\n🛒 В корзине сейчас: {n} шт.",
 
     // ── курсы ──
     courses_title: "📚 <b>ГОТОВЫЕ СВЯЗКИ</b>",
@@ -76,6 +77,7 @@ const DICT: Record<Lang, Record<string, string>> = {
     order_items: "🛍 <b>Товары:</b>",
     order_total: "💰 <b>Сумма: {total}</b>",
     order_address: "📍 <b>Адрес:</b> {addr}",
+    order_postal: "🔢 <b>Индекс:</b> {code}",
     order_phone: "📞 <b>Телефон:</b> {phone}",
     order_status: "📦 <b>Статус:</b> {status}",
     order_payment: "💳 <b>Оплата:</b> {payment}",
@@ -108,6 +110,7 @@ const DICT: Record<Lang, Record<string, string>> = {
     enter_region: "📍 Введите <b>область/регион</b>:",
     enter_city: "🏙 Введите <b>город</b>:",
     enter_address: "🏠 Введите <b>адрес</b>:",
+    enter_postal: "🔢 Введите <b>почтовый индекс</b>:",
     enter_phone: "📞 Введите <b>номер телефона</b>:",
     field_fio: "ФИО",
     field_region: "Область/регион",
@@ -116,12 +119,14 @@ const DICT: Record<Lang, Record<string, string>> = {
     region_set: "📍 <b>Регион</b>: {v}",
     city_set: "🏙 <b>Город</b>: {v}",
     address_set: "🏠 <b>Адрес</b>: {v}",
+    postal_set: "🔢 <b>Индекс</b>: {v}",
     order_not_found_restart: "❌ Заказ не найден. Начните оформление заново.",
     check_order: "📦 <b>ПРОВЕРКА ЗАКАЗА</b>",
     label_fio: "👤 <b>ФИО</b>",
     label_region: "📍 <b>Регион</b>",
     label_city: "🏙 <b>Город</b>",
     label_addr: "🏠 <b>Адрес</b>",
+    label_postal: "🔢 <b>Индекс</b>",
     label_phone: "📞 <b>Телефон</b>",
     summary_items: "🛍 <b>Товары:</b>",
     summary_sum: "💰 <b>Сумма: {total}</b>",
@@ -176,6 +181,7 @@ const DICT: Record<Lang, Record<string, string>> = {
     name_long: "Слишком длинное имя",
     addr_short: "Слишком короткий адрес",
     addr_long: "Слишком длинный адрес",
+    postal_invalid: "Введите корректный почтовый индекс",
   },
 
   kk: {
@@ -222,6 +228,7 @@ const DICT: Record<Lang, Record<string, string>> = {
     product_added: "✅ Тауар себетке қосылды",
     price_label: "💰 Бағасы: {price}",
     product_no_stock: "❌ Тауар қазір қолда жоқ",
+    cart_count_note: "\n\n🛒 Себетте қазір: {n} дана.",
 
     // ── курсы ──
     courses_title: "📚 <b>ДАЙЫН ЖИЫНТЫҚТАР</b>",
@@ -253,6 +260,7 @@ const DICT: Record<Lang, Record<string, string>> = {
     order_items: "🛍 <b>Тауарлар:</b>",
     order_total: "💰 <b>Сома: {total}</b>",
     order_address: "📍 <b>Мекенжай:</b> {addr}",
+    order_postal: "🔢 <b>Индекс:</b> {code}",
     order_phone: "📞 <b>Телефон:</b> {phone}",
     order_status: "📦 <b>Мәртебе:</b> {status}",
     order_payment: "💳 <b>Төлем:</b> {payment}",
@@ -285,6 +293,7 @@ const DICT: Record<Lang, Record<string, string>> = {
     enter_region: "📍 <b>Облысыңызды/аймағыңызды</b> енгізіңіз:",
     enter_city: "🏙 <b>Қалаңызды</b> енгізіңіз:",
     enter_address: "🏠 <b>Мекенжайыңызды</b> енгізіңіз:",
+    enter_postal: "🔢 <b>Пошта индексін</b> енгізіңіз:",
     enter_phone: "📞 <b>Телефон нөмірін</b> енгізіңіз:",
     field_fio: "Аты-жөні",
     field_region: "Облыс/аймақ",
@@ -293,12 +302,14 @@ const DICT: Record<Lang, Record<string, string>> = {
     region_set: "📍 <b>Аймақ</b>: {v}",
     city_set: "🏙 <b>Қала</b>: {v}",
     address_set: "🏠 <b>Мекенжай</b>: {v}",
+    postal_set: "🔢 <b>Индекс</b>: {v}",
     order_not_found_restart: "❌ Тапсырыс табылмады. Рәсімдеуді қайта бастаңыз.",
     check_order: "📦 <b>ТАПСЫРЫСТЫ ТЕКСЕРУ</b>",
     label_fio: "👤 <b>Аты-жөні</b>",
     label_region: "📍 <b>Аймақ</b>",
     label_city: "🏙 <b>Қала</b>",
     label_addr: "🏠 <b>Мекенжай</b>",
+    label_postal: "🔢 <b>Индекс</b>",
     label_phone: "📞 <b>Телефон</b>",
     summary_items: "🛍 <b>Тауарлар:</b>",
     summary_sum: "💰 <b>Сома: {total}</b>",
@@ -353,6 +364,7 @@ const DICT: Record<Lang, Record<string, string>> = {
     name_long: "Аты тым ұзын",
     addr_short: "Мекенжай тым қысқа",
     addr_long: "Мекенжай тым ұзын",
+    postal_invalid: "Дұрыс пошта индексін енгізіңіз",
   },
 };
 

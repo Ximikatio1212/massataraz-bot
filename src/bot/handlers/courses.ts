@@ -1,9 +1,9 @@
 import { InlineKeyboard } from "grammy";
 import { BotContext } from "../middleware/auth";
 import { getActiveCourses, getCourseById } from "../../services/course.service";
-import { addCourseToCart } from "../../services/cart.service";
+import { addCourseToCart, getCartSummary } from "../../services/cart.service";
 import { getUserByTelegramId } from "../../services/user.service";
-import { renderPhoto, editText, answerAlert } from "../helpers";
+import { renderPhoto, editText, answerAlert, backToMenuKb, editCurrentOrReply } from "../helpers";
 import { formatPrice } from "../../utils/formatting";
 import { userFriendlyError } from "../../utils/errors";
 import { t, itemsWord } from "../../i18n";
@@ -17,7 +17,7 @@ export async function handleCoursesList(ctx: BotContext) {
   const courses = await getActiveCourses();
 
   if (courses.length === 0) {
-    await editText(ctx, t(lang, "courses_empty"));
+    await editText(ctx, t(lang, "courses_empty"), backToMenuKb(lang));
     return;
   }
 
@@ -94,10 +94,40 @@ export async function handleCourseAdd(ctx: BotContext, courseId: number, quantit
 
   try {
     await addCourseToCart(dbUser.id, courseId, quantity);
-    await answerAlert(ctx, t(lang, "course_added"));
-    const msg = ctx.callbackQuery?.message as any;
-    if (msg?.caption != null) await ctx.deleteMessage().catch(() => {});
   } catch (e: any) {
     await answerAlert(ctx, userFriendlyError(e.message ?? "GENERIC", lang));
+    return;
   }
+
+  // Остаёмся на экране курса с фидбеком «добавлено + сколько в корзине».
+  const course = await getCourseById(courseId);
+  if (!course) return;
+  const cart = await getCartSummary(dbUser.id);
+  const totalPcs = cart.items.reduce((s, i) => s + i.quantity, 0);
+
+  const components = course.items
+    .map((item) => `• ${item.product.name} × ${item.quantity}`)
+    .join("\n");
+
+  const kb = new InlineKeyboard()
+    .text(t(lang, "btn_add_course_cart"), `course:add:${course.id}`)
+    .row()
+    .text(t(lang, "btn_cart"), "cart:view")
+    .row()
+    .text(t(lang, "btn_back"), "courses:list");
+
+  let text = [
+    `🔥 <b>${course.name}</b>`,
+    ``,
+    course.description ?? "",
+    ``,
+    t(lang, "in_pack"),
+    components,
+    ``,
+    t(lang, "course_price", { price: formatPrice(Number(course.price)) }),
+  ].join("\n");
+  text += `\n\n${t(lang, "course_added")}`;
+  text += t(lang, "cart_count_note", { n: totalPcs });
+
+  await editCurrentOrReply(ctx, text, kb);
 }
