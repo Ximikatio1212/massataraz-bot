@@ -68,10 +68,15 @@ export async function getObject(
   try {
     const c = getClient();
     const bucket = getBucket();
+    let contentType = "application/octet-stream";
+    try {
+      const stat = await c.statObject(bucket, key);
+      contentType = stat.metaData?.["content-type"] ?? stat.metaData?.contentType ?? contentType;
+    } catch {}
     const stream = await c.getObject(bucket, key);
     const chunks: Buffer[] = [];
     for await (const chunk of stream) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-    return { data: Buffer.concat(chunks), contentType: "application/octet-stream" };
+    return { data: Buffer.concat(chunks), contentType };
   } catch (e) {
     return null;
   }
