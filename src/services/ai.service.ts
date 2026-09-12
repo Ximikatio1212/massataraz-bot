@@ -341,12 +341,16 @@ export async function handleAiChat(
   ];
   const tools = isAdmin ? adminTools : clientTools;
 
+  // Индекс, с которого начинаются сообщения данного вызова: цикл сохранения
+  // не должен подставлять более старые ответы бота при сбое модели.
+  const startIdx = messages.length;
+
   let safety = 0;
   while (safety++ < 6) {
     let res: any;
     try {
       mark(`ai:req try=${safety}`);
-      res = await fetch(`${cfg.baseUrl}${cfg.chatPath}`, {
+      const raw = await fetch(`${cfg.baseUrl}${cfg.chatPath}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -361,11 +365,16 @@ export async function handleAiChat(
           max_tokens: 700,
         }),
         signal: AbortSignal.timeout(9_000),
-      })
-        .then((r) => {
-          mark(`ai:http ${r.status}`);
-          return r.ok ? r.json() : null;
-        });
+      });
+      mark(`ai:http ${raw.status}`);
+      if (raw.status === 429) {
+        mark("ai:429");
+        await new Promise((r) => setTimeout(r, 2_000));
+        continue;
+      }
+      if (raw.ok) {
+        res = await raw.json().catch(() => null);
+      }
     } catch (e: any) {
       mark(`ai:req-err ${String(e?.message ?? e).slice(0, 120)}`);
       break;
@@ -398,7 +407,7 @@ export async function handleAiChat(
     }
   }
 
-  for (let i = messages.length - 1; i >= 0; i--) {
+  for (let i = messages.length - 1; i >= startIdx; i--) {
     const m = messages[i];
     if (m.role === "assistant" && m.content) {
       const toSave = messages.slice(1).slice(-20).map((m: any) => ({
@@ -417,5 +426,5 @@ export async function handleAiChat(
   }
 
   mark("ai:fallback");
-  return "Не удалось получить ответ. Попробуйте ещё раз.";
+  return "Сервис ИИ-ответов сейчас перегружен. Попробуйте ещё раз через пару минут.";
 }
