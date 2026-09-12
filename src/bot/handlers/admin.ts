@@ -1197,19 +1197,17 @@ export async function processAdminText(ctx: BotContext, state: any, text: string
     case ConversationState.WAITING_PRODUCT_IMAGE: {
       const v = value.toLowerCase();
       if (["без фото", "безфото", "без", "нет", "-", "skip"].includes(v)) {
-        if (payload.editProductId) {
-          await updateProduct(Number(payload.editProductId), { imageUrl: null });
-          await resetState(dbUser.id);
-          await editText(ctx, "✅ Изображение не требуется.");
-          return handleAdminProductView(ctx, Number(payload.editProductId));
-        }
-        payload.imageUrl = null;
-        return showProductPreview(ctx, dbUser.id, payload);
+if (payload.editProductId) {
+        await updateProduct(Number(payload.editProductId), { imageUrl: null });
+        await resetState(dbUser.id);
+        await editText(ctx, "✅ Изображение не требуется.");
+        return handleAdminProductView(ctx, Number(payload.editProductId));
       }
-      if (payload.editProductId) {
-        await editText(ctx, `Отправьте <b>фото товара</b> или напишите «Без фото».`);
-        return;
+      payload.imageUrl = null;
+      return showProductPreview(ctx, dbUser.id, payload);
       }
+      // Иначе напоминаем подсказкой-сообщением, не трогая canvas-превью.
+      await replyText(ctx, `📎 Отправьте <b>фото товара</b> или напишите «Без фото».`);
       return;
     }
 
