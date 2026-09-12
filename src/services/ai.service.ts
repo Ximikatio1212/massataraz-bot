@@ -280,13 +280,22 @@ interface Msg {
   tool_call_id?: string;
 }
 
+function cleanToolCalls(tc: any[]): any[] {
+  if (!Array.isArray(tc)) return [];
+  return tc.map((c: any) => ({
+    id: c?.id,
+    type: c?.type ?? "function",
+    function: c?.function ?? { name: "", arguments: "{}" },
+  }));
+}
+
 export function trimAiMessages(msgs: any[]): Msg[] {
   if (!Array.isArray(msgs)) return [];
   return msgs
     .map((m: any) => ({
       role: m.role,
       content: typeof m.content === "string" ? (m.content.length > 600 ? m.content.slice(0, 570) + "…(обрезано)" : m.content) : m.content,
-      ...(m.tool_calls ? { tool_calls: m.tool_calls } : {}),
+      ...(m.tool_calls?.length ? { tool_calls: cleanToolCalls(m.tool_calls) } : {}),
       ...(m.tool_call_id ? { tool_call_id: m.tool_call_id } : {}),
       ...(m.name ? { name: m.name } : {}),
     }))
@@ -413,7 +422,7 @@ export async function handleAiChat(
       const toSave = messages.slice(1).slice(-20).map((m: any) => ({
         role: m.role,
         content: m.content,
-        ...(m.tool_calls ? { tool_calls: m.tool_calls } : {}),
+        ...(m.tool_calls?.length ? { tool_calls: cleanToolCalls(m.tool_calls) } : {}),
         ...(m.tool_call_id ? { tool_call_id: m.tool_call_id } : {}),
         ...(m.name ? { name: m.name } : {}),
       }));
