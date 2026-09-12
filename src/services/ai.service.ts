@@ -24,7 +24,7 @@ const PROVIDERS: Record<string, { baseUrl: string; defaultModel: string; chatPat
   },
   groq: {
     baseUrl: "https://api.groq.com/openai",
-    defaultModel: "openai/gpt-oss-120b",
+    defaultModel: "openai/gpt-oss-20b",
   },
   openrouter: {
     baseUrl: "https://openrouter.ai/api",
@@ -37,7 +37,10 @@ function providerConfig(): Provider | null {
   const p = PROVIDERS[name] ?? PROVIDERS.gemini;
   const apiKey = process.env.AI_API_KEY;
   if (!apiKey) return null;
-  const model = process.env.AI_MODEL || p.defaultModel;
+  // Для Groq всегда берём быструю модель: Free-план Netlify обрезает функцию
+  // на 10с, а 120b не успевает ответить. env-переопределение AI_MODEL может
+  // содержать старую медленную модель — игнорируем его для Groq.
+  const model = name === "groq" ? p.defaultModel : process.env.AI_MODEL || p.defaultModel;
   return { baseUrl: p.baseUrl, chatPath: p.chatPath ?? "/v1/chat/completions", apiKey, model };
 }
 
@@ -398,7 +401,7 @@ export async function handleAiChat(
           tools,
           tool_choice: "auto",
           temperature: 0.3,
-          max_tokens: 700,
+          max_tokens: 500,
         }),
         signal: AbortSignal.timeout(9_000),
       });
