@@ -1186,8 +1186,24 @@ export async function processAdminText(ctx: BotContext, state: any, text: string
       return;
     }
 
-    case ConversationState.WAITING_PRODUCT_IMAGE:
+    case ConversationState.WAITING_PRODUCT_IMAGE: {
+      const v = value.toLowerCase();
+      if (["без фото", "безфото", "без", "нет", "-", "skip"].includes(v)) {
+        if (payload.editProductId) {
+          await updateProduct(Number(payload.editProductId), { imageUrl: null });
+          await resetState(dbUser.id);
+          await editText(ctx, "✅ Изображение не требуется.");
+          return handleAdminProductView(ctx, Number(payload.editProductId));
+        }
+        payload.imageUrl = null;
+        return showProductPreview(ctx, dbUser.id, payload);
+      }
+      if (payload.editProductId) {
+        await editText(ctx, `Отправьте <b>фото товара</b> или напишите «Без фото».`);
+        return;
+      }
       return;
+    }
 
     /* ---- Category ---- */
     case ConversationState.WAITING_CATEGORY_NAME: {

@@ -183,7 +183,7 @@ async function execTool(name: string, args: any, ctx: BotContext): Promise<strin
           `https://ru.wikipedia.org/api/rest_v1/page/summary/${query}`,
           { signal: AbortSignal.timeout(5000) }
         ).then((r) => (r.ok ? r.json() : null)).catch(() => null);
-        if (!res?.extract) return "Нет данных в Wikipedia по запросу.";
+        if (!res?.extract) return "Справка из Wikipedia недоступна — ответь кратко из общих знаний.";
         return res.extract.slice(0, 500);
       }
       case "create_category": {
@@ -204,7 +204,16 @@ async function execTool(name: string, args: any, ctx: BotContext): Promise<strin
             stock: Number(args.stock ?? 0),
           },
         });
-        return JSON.stringify({ ok: true, id: p.id, name: p.name });
+        // После создания переводим админа в состояние приёма фото товара.
+        try {
+          const { setState } = await import("../services/state.service");
+          const dbUser = await getUserByTelegramId(ctx.state.user.telegramId);
+          if (dbUser) {
+            const { ConversationState } = await import("@prisma/client");
+            await setState(dbUser.id, ConversationState.WAITING_PRODUCT_IMAGE, { editProductId: p.id });
+          }
+        } catch {}
+        return JSON.stringify({ ok: true, id: p.id, name: p.name, askPhoto: true });
       }
       case "create_course": {
         if (!ctx.state.user?.isAdmin) return "Только для администратора";
@@ -244,8 +253,9 @@ async function execTool(name: string, args: any, ctx: BotContext): Promise<strin
 
 const CLIENT_SYSTEM = [
   "Ты — консультант магазина спортивного питания «Massa Taraz» (Казахстан, тенге).",
-  "Отвечай кратко и дружелюбно на русском. Рекомендуй товары по реальным данным из инструментов — никогда не выдумывай цены.",
-  "Для вопросов о составе/свойствах (тестостерон, протеин, BCAA и т.д.) используй explain_substance: 2–3 предложения, без лишней информации.",
+  "Отвечай кратко и дружелюбно: 3–5 предложений, без списков из JSON и без служебных деталей. Рекомендуй товары по реальным данным из инструментов — цены и наличие не выдумывай.",
+  "Если по запросу нет совпадений в каталоге — НЕ пиши «не нашёл информацию в базе данных», не упоминай базу данных и технические детали. Вежливо скажи, что такого товара сейчас нет в ассортименте, предложи написать менеджеру или спроси точнее.",
+  "Для вопросов о составе/свойствах (тестостерон, протеин, BCAA и т.д.) используй explain_substance и при необходимости дополни из общих знаний: 2–3 предложения, без лишней информации.",
   "Не давай медицинских/лечебных рекомендаций: это спортпит, не лекарство.",
 ].join("\n");
 
@@ -254,6 +264,8 @@ const ADMIN_SYSTEM = [
   "Помогаешь управлять каталогом: категории, товары, курсы/связки, остатки.",
   "Перед созданием ОБЯЗАТЕЛЬНО покажи план: название, цена, категория, описание, остаток. Затем спроси «Создаю? Да / нет».",
   "Создавай товар/категорию/курс ТОЛЬКО после явного подтверждения «да» от админа.",
+  "После create_product всегда попроси администратора отправить <b>фото товара</b> или написать «без фото».",
+  "Не упоминай «базу данных» и не говори «не нашёл информации» — просто оперируй фактами или вежливо уточни.",
   "Используй инструменты для работы с БД. Всё на русском, кратко и по делу.",
 ].join("\n");
 
