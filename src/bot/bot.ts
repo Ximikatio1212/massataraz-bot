@@ -133,7 +133,6 @@ export async function handleAiOrMenu(ctx: BotContext, text?: string) {
     return;
   }
   const { handleAiChat } = await import("../services/ai.service");
-  const isAdmin = ctx.state.user?.isAdmin ?? false;
   mark("ai:call-start");
   const reply = await handleAiChat(ctx, text ?? "");
   if (!reply) {
@@ -142,21 +141,12 @@ export async function handleAiOrMenu(ctx: BotContext, text?: string) {
     return;
   }
   mark("ai:got-reply");
-  await startHandlerToRender(ctx, reply, isAdmin);
+  await startHandlerToRender(ctx, reply);
 }
 
-async function startHandlerToRender(ctx: BotContext, aiReply: string, isAdmin: boolean) {
+async function startHandlerToRender(ctx: BotContext, aiReply: string) {
   const { renderText, safeText } = await import("./helpers");
-  const { mainMenuKeyboard } = await import("./keyboards/main");
-  const { getUserByTelegramId } = await import("../services/user.service");
-  let lang = "ru";
-  try {
-    const dbUser = ctx.state.user ? await getUserByTelegramId(ctx.state.user.telegramId) : null;
-    lang = dbUser?.lang ?? "ru";
-  } catch {}
-  // Ответ ИИ рендерится с parse_mode HTML: экранируем спецсимволы, чтобы
-  // ответ не "падал" на невалидном HTML (иначе сообщение молча не отправляется).
-  await renderText(ctx, safeText(aiReply), mainMenuKeyboard(isAdmin, lang));
+  await renderText(ctx, safeText(aiReply));
 }
 
 async function shouldReplyWithAi(ctx: BotContext): Promise<boolean> {

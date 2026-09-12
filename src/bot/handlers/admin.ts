@@ -1111,6 +1111,14 @@ export async function processAdminText(ctx: BotContext, state: any, text: string
   const payload: any = { ...((state.payload ?? {}) as any) };
   const value = text.trim();
 
+  // Быстрая отмена текстом из любого сценария создания/редактирования.
+  const cancelWords = ["отмена", "отменить", "cancel", "стоп"];
+  if (cancelWords.includes(value.toLowerCase())) {
+    await resetState(dbUser.id);
+    await editText(ctx, "❌ Отменено. Возврат в админ-панель.");
+    return handleAdminMenu(ctx);
+  }
+
   switch (state.state) {
     /* ---- Product ---- */
     case ConversationState.WAITING_PRODUCT_NAME: {
