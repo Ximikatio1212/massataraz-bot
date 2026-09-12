@@ -58,11 +58,23 @@ export async function uploadFile(
     "Content-Type": contentType,
   });
 
-  const publicEndpoint = process.env.STORAGE_PUBLIC_ENDPOINT?.replace(/\/$/, "");
-  const url = publicEndpoint
-    ? `${publicEndpoint}/${key}`
-    : `${process.env.STORAGE_ENDPOINT?.replace(/\/$/, "") ?? ""}/${bucket}/${key}`;
-  return { url, key };
+  return { url: getPublicUrl(key), key };
+}
+
+/** Скачивает объект из хранилища (для релея публичных изображений). */
+export async function getObject(
+  key: string
+): Promise<{ data: Buffer; contentType: string } | null> {
+  try {
+    const c = getClient();
+    const bucket = getBucket();
+    const stream = await c.getObject(bucket, key);
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    return { data: Buffer.concat(chunks), contentType: "application/octet-stream" };
+  } catch (e) {
+    return null;
+  }
 }
 
 export async function deleteFile(key: string): Promise<void> {
@@ -78,6 +90,8 @@ export async function deleteFile(key: string): Promise<void> {
 export function getPublicUrl(key: string): string {
   const publicEndpoint = process.env.STORAGE_PUBLIC_ENDPOINT?.replace(/\/$/, "");
   if (publicEndpoint) return `${publicEndpoint}/${key}`;
+  const relay = process.env.STORAGE_RELAY_ENDPOINT?.replace(/\/$/, "");
+  if (relay) return `${relay}/.netlify/functions/img?k=${encodeURIComponent(key)}`;
   return `${process.env.STORAGE_ENDPOINT?.replace(/\/$/, "") ?? ""}/${getBucket()}/${key}`;
 }
 
