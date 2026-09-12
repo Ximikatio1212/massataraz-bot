@@ -24,7 +24,7 @@ const PROVIDERS: Record<string, { baseUrl: string; defaultModel: string; chatPat
   },
   groq: {
     baseUrl: "https://api.groq.com/openai",
-    defaultModel: "llama-3.3-70b-versatile",
+    defaultModel: "openai/gpt-oss-120b",
   },
   openrouter: {
     baseUrl: "https://openrouter.ai/api",
