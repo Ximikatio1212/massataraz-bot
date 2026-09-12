@@ -317,7 +317,7 @@ export async function handleAiChat(
   const history = trimAiMessages(dbUser.aiConversation as any[]);
   const messages: Msg[] = [
     { role: "system", content: systemContent },
-    ...(isAdmin ? history : history.slice(-6)),
+    ...(isAdmin ? history.slice(-10) : history.slice(-6)),
     { role: "user", content: userText },
   ];
   const tools = isAdmin ? adminTools : clientTools;
