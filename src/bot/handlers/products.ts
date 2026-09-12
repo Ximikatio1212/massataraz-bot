@@ -67,9 +67,10 @@ export async function handleProductAdd(ctx: BotContext, productId: number, quant
 
   try {
     await addProductToCart(dbUser.id, productId, quantity);
-    await answerAlert(ctx, t(lang, "product_added"));
-    const msg = ctx.callbackQuery?.message as any;
-    if (msg?.caption != null) await ctx.deleteMessage().catch(() => {});
+    // Сразу показываем корзину надёжным рендером (webhook reply) — не полагаемся
+    // на исходящий answerCallbackQuery/deleteMessage, которые на cmh молча падают.
+    const { handleCartView } = await import("./cart");
+    await handleCartView(ctx);
   } catch (e: any) {
     await answerAlert(ctx, userFriendlyError(e.message ?? "GENERIC", lang));
   }

@@ -15,7 +15,7 @@ import {
 } from "../keyboards/admin";
 import { adminMenuKeyboard } from "../keyboards/main";
 import { editText, replyText, answerAlert } from "../helpers";
-import { formatPrice } from "../../utils/formatting";
+import { formatPrice, formatDate } from "../../utils/formatting";
 import { validatePrice, validateQuantity, validateName } from "../../utils/validation";
 import { userFriendlyError } from "../../utils/errors";
 import {
@@ -1492,7 +1492,7 @@ export async function handleAdminOrderListByFilter(ctx: BotContext, filter: stri
   const lines = orders.map((o) => {
     kb.text(`№${o.id} • ${formatPrice(Number(o.total))}`, `order:view:${o.id}`);
     kb.row();
-    return `№${o.id} • ${formatPrice(Number(o.total))} • ${o.status}`;
+    return `№${o.id} • ${formatPrice(Number(o.total))} • ${o.status} • ${formatDate(o.createdAt)}`;
   });
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));

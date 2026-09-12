@@ -29,6 +29,7 @@ export async function getOrCreateUser(telegramId: bigint, username?: string, fir
       firstName,
       lastName,
       role: "user",
+      aiMode: true, // ИИ-консультант по умолчанию включён; клиент может выключить кнопкой
     },
     include: {
       state: true,

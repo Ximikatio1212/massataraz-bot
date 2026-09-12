@@ -46,7 +46,24 @@ export async function renderText(ctx: BotContext, text: string, keyboard?: Inlin
 
   const canvasId = canvas && canvas.chatId === BigInt(chatId) ? Number(canvas.messageId) : null;
 
-  if (currentChatId === chatId && currentId != null) {
+  // Сообщение-медиа (фото/документ и т.п.) нельзя отредактировать в текст:
+  // editMessageText вернёт 400. В webhook-reply-режиме grammY «хуже» того —
+  // ловит этот запрос как успешный, и пользователь видит, что кнопка «не
+  // работает». Поэтому media-сообщения никогда не редактируем, а после успешной
+  // отправки нового canvas удаляем их по-настоящему.
+  const cbMsg = ctx.callbackQuery?.message as any;
+  const isMediaMessage = !!cbMsg && (
+    Array.isArray(cbMsg.photo) ||
+    !!cbMsg.document ||
+    !!cbMsg.video ||
+    !!cbMsg.audio ||
+    !!cbMsg.voice ||
+    !!cbMsg.sticker ||
+    !!cbMsg.animation ||
+    !!cbMsg.video_note
+  );
+
+  if (!isMediaMessage && currentChatId === chatId && currentId != null) {
     // Callback: нажатое сообщение гарантированно существует. Редактируем ЕГО —
     // это безопасный первый вызов для webhook reply. Удаление иного сообщения
     // НИКОГДА не делаем первым: на cmh оно съело бы webhook reply, а сам рендер
@@ -91,6 +108,10 @@ export async function renderText(ctx: BotContext, text: string, keyboard?: Inlin
     // Best-effort: убрать старый canvas после успешной отправки нового.
     if (canvasId != null && sent.message_id !== canvasId) {
       await ctx.api.deleteMessage(chatId, canvasId).catch(() => {});
+    }
+    // И нередактируемое media-сообщение, с кнопки которого ушли дальше.
+    if (isMediaMessage && currentId != null && currentId !== sent.message_id) {
+      await ctx.api.deleteMessage(chatId, currentId).catch(() => {});
     }
   }
 }
