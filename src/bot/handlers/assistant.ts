@@ -10,10 +10,16 @@ export async function handleAssistantStart(ctx: BotContext) {
   const dbUser = await getUserByTelegramId(ctx.state.user.telegramId);
   if (!dbUser) return;
   const lang = dbUser.lang ?? "ru";
+  const isAdmin = ctx.state.user.isAdmin;
 
   await setAiMode(dbUser.id, true);
 
-  const isAdmin = ctx.state.user.isAdmin;
+  // Для клиента включаем режим вопросов «с чистого листа»: сбрасываем застрявшие
+  // визарды оформления, чтобы свободный текст шёл в ИИ, а не блокировался чек-флоу.
+  if (!isAdmin) {
+    const { resetState } = await import("../../services/state.service");
+    await resetState(dbUser.id).catch(() => {});
+  }
   const text = isAdmin
     ? "🤖 <b>ИИ-ассистент активен.</b>\n\nНапишите, что нужно сделать."
     : t(lang, "assistant_client_active");

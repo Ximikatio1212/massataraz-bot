@@ -341,12 +341,17 @@ export async function handleTextMessage(ctx: BotContext): Promise<boolean> {
     state.state === ConversationState.WAITING_ORDER_REGION ||
     state.state === ConversationState.WAITING_ORDER_CITY ||
     state.state === ConversationState.WAITING_ORDER_ADDRESS ||
-    state.state === ConversationState.WAITING_ORDER_PHONE ||
-    state.state === ConversationState.WAITING_RECEIPT
+    state.state === ConversationState.WAITING_ORDER_POSTAL ||
+    state.state === ConversationState.WAITING_ORDER_PHONE
   ) {
     await processOrderText(ctx, state, ctx.message.text);
     return true;
   }
+
+  // Чек принимается только фото/документом (handleReceiptUpload). Текстовое
+  // сообщение в состоянии WAITING_RECEIPT — это вопрос к ассистенту, а не чек:
+  // не блокируем его и даём уйти в ИИ.
+  if (state.state === ConversationState.WAITING_RECEIPT) return false;
 
   await processAdminText(ctx, state, ctx.message.text);
   return true;
