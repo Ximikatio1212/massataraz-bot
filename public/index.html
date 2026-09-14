@@ -2,11 +2,58 @@
 <html lang="ru">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Massa Taraz</title>
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#481173" />
+    <meta
+      name="description"
+      content="MASSA TARAZ — магазин спортивного питания. Каталог, готовые связки, ИИ-консультант, отслеживание заказа."
+    />
+    <title>MASSA TARAZ</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
   </head>
   <body>
-    <h1>🏋️ Massa Taraz</h1>
-    <p>Telegram-бот магазина спортивного питания. Откройте бота в Telegram.</p>
+    <header class="top" id="top">
+      <div class="top-inner">
+        <div class="brand" id="brand">
+          <img id="logo" src="/logo.png" alt="" onerror="this.style.display='none'" />
+          <span class="brand-name">MASSA TARAZ</span>
+        </div>
+        <div class="top-badge" id="cart-badge" data-act="nav:tab" data-tab="cart" hidden>
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6h15l-1.5 9h-12z" /><path d="M6 6L5 3H2" /><circle cx="9" cy="20" r="1.6"/><circle cx="18" cy="20" r="1.6"/></svg>
+          <span id="cart-badge-n"></span>
+        </div>
+      </div>
+    </header>
+
+    <main id="app" class="app"><div class="boot">Загрузка…</div></main>
+
+    <nav class="tabbar" id="tabbar">
+      <button class="tab" data-act="nav:tab" data-tab="main">
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-8 9 8"/><path d="M5 9.5V21h14V9.5"/></svg>
+        <span>Главная</span>
+      </button>
+      <button class="tab" data-act="nav:tab" data-tab="cart">
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6h15l-1.5 9h-12z"/><path d="M6 6L5 3H2"/><circle cx="9" cy="20" r="1.6"/><circle cx="18" cy="20" r="1.6"/></svg>
+        <span>Корзина</span>
+      </button>
+      <button class="tab" data-act="nav:tab" data-tab="ai">
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9z"/></svg>
+        <span>ИИ</span>
+      </button>
+      <button class="tab" data-act="nav:tab" data-tab="profile">
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg>
+        <span>Профиль</span>
+      </button>
+    </nav>
+
+    <div id="overlay" class="overlay" hidden></div>
+    <div id="toast" class="toast" hidden></div>
+    <input type="file" id="file-proxy" accept="image/jpeg,image/png,image/webp,image/heic" hidden />
+
+    <script src="/app.js"></script>
   </body>
 </html>

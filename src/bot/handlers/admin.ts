@@ -2,7 +2,7 @@ import { InlineKeyboard } from "grammy";
 import { BotContext } from "../middleware/auth";
 import { getUserByTelegramId } from "../../services/user.service";
 import { setState, resetState, getState } from "../../services/state.service";
-import { ConversationState } from "@prisma/client";
+import { ConversationState, OrderStatus } from "@prisma/client";
 import {
   adminProductsKeyboard,
   adminCategoriesKeyboard,
@@ -45,7 +45,8 @@ import {
   removeCourseItem,
   deleteCourse,
 } from "../../services/course.service";
-import { getAllOrders, getOrderById, changeOrderStatus, confirmOrderPayment, rejectOrderPayment } from "../../services/order.service";
+import { getAllOrders, getOrderById, changeOrderStatus, confirmOrderPayment, rejectOrderPayment, updateOrder, setOrderTrackNumber } from "../../services/order.service";
+import { registerForTracking, trackingLink } from "../../services/tracking.service";
 import { getPaymentsByStatus } from "../../services/payment.service";
 import { getStatistics } from "../../services/statistics.service";
 import { uploadFile } from "../../services/storage.service";
@@ -1395,6 +1396,55 @@ if (payload.editProductId) {
       return;
     }
 
+    case ConversationState.WAITING_ORDER_TRACK: {
+      const orderId = Number(payload.orderId);
+      if (!orderId) {
+        await resetState(dbUser.id);
+        return answerAlert(ctx, "Ошибка. Попробуйте ещё раз.");
+      }
+      const skip = ["-", "—", "пропустить", "skip", "/skip"].includes(value.toLowerCase());
+      if (skip) {
+        await setOrderTrackNumber(orderId, "");
+        await resetState(dbUser.id);
+        await editText(ctx, "ℹ️ Трек-номер не указан.");
+        const { handleOrderView } = await import("./orders");
+        return handleOrderView(ctx, orderId);
+      }
+      if (value.length < 5 || value.length > 50) {
+        return answerAlert(ctx, "Трек-номер должен быть от 5 до 50 символов.");
+      }
+      await setOrderTrackNumber(orderId, value);
+      await updateOrder(orderId, { status: OrderStatus.shipped });
+      await resetState(dbUser.id);
+
+      // Регистрируем номер в 17TRACK, чтобы клиент видел статусы автоматически.
+      const dbUser2 = await getUserByTelegramId(user.telegramId);
+      registerForTracking(value, dbUser2?.lang ?? "ru").catch(() => {});
+
+      const order = await getOrderById(orderId);
+      if (order) {
+        await getBot()
+          .api.sendMessage(
+            order.user.telegramId.toString(),
+            [
+              `📦 На ваш заказ №${orderId} получен <b>трек-номер</b>.`,
+              ``,
+              `Номер: <code>${value}</code>`,
+              `Следить: ${trackingLink(value)}`,
+              ``,
+              `Обновлённый статус — в <b>Mini App</b> (кнопка на Главном меню).`,
+            ].join("\n"),
+            { parse_mode: "HTML" }
+          )
+          .catch(() => {});
+        await editText(ctx, `✅ Трек-номер сохранён.\n\n${trackingLink(value)}`);
+        const { handleOrderView } = await import("./orders");
+        return handleOrderView(ctx, orderId);
+      }
+      await editText(ctx, "✅ Трек-номер сохранён.");
+      return;
+    }
+
     default:
       return;
   }
@@ -1553,13 +1603,38 @@ export async function handleAdminOrderSetStatus(ctx: BotContext, status: string,
   if (!order) return answerAlert(ctx, "❌ Заказ не найден.");
 
   await changeOrderStatus(orderId, status as any);
-  await notifyUserOrderStatus(order.user.telegramId, orderId, status);
+  await notifyUserOrderStatus(order.user.telegramId, orderId, status, order.trackNumber as string | undefined);
   await answerAlert(ctx, "✅ Статус обновлён.");
+
+  // При переходе в «Отправлен» просим ввести трек-номер: клиент увидит его
+  // автоматически в трекере Mini App.
+  if (status === "shipped") {
+    const dbUser = await getUserByTelegramId(ctx.state.user!.telegramId);
+    if (dbUser) {
+      await setState(dbUser.id, ConversationState.WAITING_ORDER_TRACK, { orderId });
+      await replyText(ctx, "🚚 Заказ отмечен как <b>отправленный</b>.\n\n📦 Введите <b>трек-номер</b> посылки — клиент увидит его в трекере автоматически.\nИли отправьте <b>—</b> чтобы пропустить.");
+      return;
+    }
+  }
+
   const { handleOrderView } = await import("./orders");
   return handleOrderView(ctx, orderId);
 }
 
-async function notifyUserOrderStatus(telegramId: bigint, orderId: number, statusLabel: string) {
+/** Админ редактирует трек-номер уже отправленного заказа. */
+export async function handleAdminOrderTrack(ctx: BotContext, orderId: number) {
+  if (!isAdminUser(ctx)) return;
+  const order = await getOrderById(orderId);
+  if (!order) return answerAlert(ctx, "❌ Заказ не найден.");
+  const cur = order.trackNumber ? `Текущий: <code>${String(order.trackNumber)}</code>\n\n` : "";
+  if (!ctx.state.user) return;
+  const dbUser = await getUserByTelegramId(ctx.state.user.telegramId);
+  if (!dbUser) return;
+  await setState(dbUser.id, ConversationState.WAITING_ORDER_TRACK, { orderId });
+  await replyText(ctx, `📦 Введите <b>трек-номер</b> посылки для заказа №${orderId}.\n\n${cur}Отправьте <b>—</b> чтобы очистить номер и пропустить.`);
+}
+
+async function notifyUserOrderStatus(telegramId: bigint, orderId: number, statusLabel: string, trackNumber?: string | null) {
   const labels: Record<string, string> = {
     pending_payment: "ожидает оплаты",
     pending_verification: "ожидает проверки",
@@ -1569,10 +1644,13 @@ async function notifyUserOrderStatus(telegramId: bigint, orderId: number, status
     completed: "завершён",
     cancelled: "отменён",
   };
+  const trackPart = statusLabel === "shipped" && trackNumber
+    ? `\n\n📦 Трек-номер: <code>${String(trackNumber)}</code>\n🌐 ${trackingLink(trackNumber)}`
+    : "";
   try {
     await getBot().api.sendMessage(
       telegramId.toString(),
-      `📦 Статус вашего заказа №${orderId}: <b>${labels[statusLabel] ?? statusLabel}</b>`,
+      `📦 Статус вашего заказа №${orderId}: <b>${labels[statusLabel] ?? statusLabel}</b>${trackPart}`,
       { parse_mode: "HTML" }
     );
   } catch (e) {}

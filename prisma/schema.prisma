@@ -62,6 +62,9 @@ enum ConversationState {
   WAITING_ORDER_PHONE
   WAITING_RECEIPT
 
+  // Order tracking number (admin enters after the order is shipped)
+  WAITING_ORDER_TRACK
+
   // Payment reject
   WAITING_REJECT_REASON
 
@@ -86,6 +89,9 @@ model User {
   payments        Payment[]
   aiConversation  Json?
   aiMode          Boolean   @default(false)
+
+  // Профиль доставки для Telegram Mini App (ФИО/адрес по умолчанию)
+  profile         Json?
 
   @@index([telegramId])
   @@index([role])
@@ -206,8 +212,9 @@ model Order {
   receiptFileName   String?
   receiptFileId     String?
   receiptMimeType   String?
-  receiptSubmittedAt DateTime?
-  createdAt         DateTime      @default(now())
+receiptSubmittedAt DateTime?
+  trackNumber        String?
+  createdAt          DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
   paidAt            DateTime?
 

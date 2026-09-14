@@ -17,6 +17,7 @@ export function orderViewKeyboard(orderId: number, isAdmin: boolean) {
   if (isAdmin) {
     kb.text("🔄 Изменить статус", `admin:order:status:${orderId}`);
   }
+  kb.text("📦 Трек-номер", `admin:order:track:${orderId}`);
   kb.row();
   kb.text("⬅️ Назад", isAdmin ? "admin:orders" : "orders:list");
   return kb;
@@ -29,6 +30,8 @@ export function orderStatusKeyboard(orderId: number) {
     .text("🚚 Отправлен", `admin:order:setstatus:shipped:${orderId}`)
     .row()
     .text("✅ Выполнен", `admin:order:setstatus:completed:${orderId}`)
+    .row()
+    .text("📦 Трек-номер", `admin:order:track:${orderId}`)
     .row()
     .text("⬅️ Назад", `order:view:${orderId}`);
   return kb;

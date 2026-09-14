@@ -140,6 +140,7 @@ export async function updateOrder(
     receiptFileId?: string;
     receiptMimeType?: string;
     receiptSubmittedAt?: Date | null;
+    trackNumber?: string | null;
     fullName?: string;
     region?: string;
     city?: string;
@@ -298,5 +299,12 @@ export async function changeOrderStatus(orderId: number, status: OrderStatus) {
   return prisma.order.update({
     where: { id: orderId },
     data: { status },
+  });
+}
+
+export async function setOrderTrackNumber(orderId: number, trackNumber: string) {
+  return prisma.order.update({
+    where: { id: orderId },
+    data: { trackNumber: trackNumber.trim() || null },
   });
 }

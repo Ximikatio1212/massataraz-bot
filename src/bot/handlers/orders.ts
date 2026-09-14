@@ -4,6 +4,7 @@ import { getUserByTelegramId } from "../../services/user.service";
 import { getUserOrders, countUserOrders, getOrderById } from "../../services/order.service";
 import { editText, answerAlert, backToMenuKb } from "../helpers";
 import { formatPrice, formatDate } from "../../utils/formatting";
+import { trackingLink } from "../../services/tracking.service";
 import { t } from "../../i18n";
 
 const PAGE_SIZE = 5;
@@ -101,6 +102,9 @@ export async function handleOrderView(ctx: BotContext, orderId: number) {
     ``,
     t(lang, "order_status", { status: statusLabel(lang, order.status) }),
     t(lang, "order_payment", { payment: paymentLabel(lang, order.paymentStatus) }),
+    ...(order.trackNumber
+      ? [`📦 <b>Трек-номер:</b> ${order.trackNumber}`, `🌐 ${trackingLink(String(order.trackNumber))}`]
+      : []),
   ].join("\n");
 
   const kb = new InlineKeyboard();

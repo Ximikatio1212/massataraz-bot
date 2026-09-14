@@ -59,6 +59,7 @@ import {
   handleAdminOrderListByFilter,
   handleAdminOrderStatus,
   handleAdminOrderSetStatus,
+  handleAdminOrderTrack,
   handleAdminClearOrders,
   handleAdminClearOrdersConfirm,
   handleAdminClearAllOrders,
@@ -287,6 +288,7 @@ async function handleAdminCallback(ctx: BotContext, parts: string[]) {
       const action = parts[2];
       if (action === "list") return handleAdminOrderListByFilter(ctx, parts[3], parts[4] ? Number(parts[4]) : 0);
       if (action === "status") return handleAdminOrderStatus(ctx, Number(parts[3]));
+      if (action === "track") return handleAdminOrderTrack(ctx, Number(parts[3]));
       if (action === "setstatus") return handleAdminOrderSetStatus(ctx, parts[3], Number(parts[4]));
       if (action === "clearall") {
         if (parts[3] === "yes") return handleAdminClearAllOrdersConfirm(ctx, true);
