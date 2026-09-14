@@ -1,4 +1,4 @@
-﻿-- CreateEnum
+-- CreateEnum
 CREATE TYPE "OrderStatus" AS ENUM ('pending_payment', 'pending_verification', 'paid', 'processing', 'shipped', 'completed', 'cancelled');
 
 -- CreateEnum
