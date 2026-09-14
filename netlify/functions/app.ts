@@ -446,7 +446,70 @@ async function route(event: any, parts: string[], method: string): Promise<any> 
     if (id && method === "GET") {
       const p = await getProductById(id);
       if (!p) return fail("PRODUCT_NOT_FOUND");
-      return ok({ product: productDto(p), cart: await cartDto(dbUser.id) });
+      const [reviews, agg] = await Promise.all([
+        prisma.review.findMany({
+          where: { productId: id },
+          orderBy: { createdAt: "desc" },
+          take: 50,
+          include: { user: { select: { firstName: true, username: true } } },
+        }),
+        prisma.review.aggregate({ where: { productId: id }, _avg: { rating: true }, _count: true }),
+      ]);
+      return ok({
+        product: productDto(p),
+        reviews: reviews.map((r: any) => ({
+          id: r.id,
+          rating: r.rating,
+          text: r.text ?? "",
+          author: r.user?.firstName || r.user?.username || "Клиент",
+          createdAt: r.createdAt,
+          mine: r.userId === dbUser.id,
+        })),
+        rating: {
+          avg: agg._avg.rating ? Math.round(agg._avg.rating * 10) / 10 : 0,
+          count: agg._count,
+        },
+        cart: await cartDto(dbUser.id),
+      });
+    }
+    // POST /products/:id/review — оставить отзыв
+    if (id && method === "POST" && parts[2] === "review") {
+      const body = await readBody(event);
+      const rating = toInt(body.rating);
+      const text = String(body.text ?? "").trim().slice(0, 1000);
+      if (!rating || rating < 1 || rating > 5) return fail("INVALID_RATING", BAD);
+      const p = await getProductById(id);
+      if (!p) return fail("PRODUCT_NOT_FOUND");
+      await prisma.review.upsert({
+        where: { productId_userId: { productId: id, userId: dbUser.id } },
+        update: { rating, text: text || null },
+        create: { productId: id, userId: dbUser.id, rating, text: text || null },
+      });
+      const [reviews, agg] = await Promise.all([
+        prisma.review.findMany({
+          where: { productId: id },
+          orderBy: { createdAt: "desc" },
+          take: 50,
+          include: { user: { select: { firstName: true, username: true } } },
+        }),
+        prisma.review.aggregate({ where: { productId: id }, _avg: { rating: true }, _count: true }),
+      ]);
+      return ok({
+        product: productDto(p),
+        reviews: reviews.map((r: any) => ({
+          id: r.id,
+          rating: r.rating,
+          text: r.text ?? "",
+          author: r.user?.firstName || r.user?.username || "Клиент",
+          createdAt: r.createdAt,
+          mine: r.userId === dbUser.id,
+        })),
+        rating: {
+          avg: agg._avg.rating ? Math.round(agg._avg.rating * 10) / 10 : 0,
+          count: agg._count,
+        },
+        cart: await cartDto(dbUser.id),
+      });
     }
     return fail("METHOD_NOT_ALLOWED", METHOD_NOT_ALLOWED);
   }

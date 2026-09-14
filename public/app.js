@@ -78,6 +78,7 @@
     catForm: { id: null, imageUrl: "" },
     courForm: { id: null, imageUrl: "" },
     courId: null,
+    revStars: 0,
     success: null,
     searchTimer: null,
   };
@@ -732,19 +733,53 @@
   }
 
   /* ────────── Данные ────────── */
-  async function loadCatalog() {
-    var d = await api("/api/app/catalog");
-    S.catalog.categories = d.categories;
-    S.products = d.products;
+  var CATALOG_TTL = 90 * 1000;
+  function catalogCacheWrite() {
+    try {
+      sessionStorage.setItem("mt.catalog", JSON.stringify({ t: Date.now(), d: {
+        categories: S.catalog.categories,
+        products: S.products,
+        total: S.total,
+        courses: S.courses,
+      } }));
+    } catch (e) {}
+  }
+  function catalogCacheRead() {
+    try {
+      var s = sessionStorage.getItem("mt.catalog");
+      if (!s) return false;
+      var o = JSON.parse(s);
+      if (!o || !o.d || Date.now() - o.t > CATALOG_TTL) return false;
+      S.catalog.categories = o.d.categories || [];
+      S.products = o.d.products || [];
+      S.total = o.d.total || 0;
+      S.courses = o.d.courses || S.courses || [];
+      S.catalog.courses = S.courses;
+      return true;
+    } catch (e) {}
+    return false;
+  }
+  async function loadCatalog(opts) {
+    opts = opts || {};
+    if (!opts.force && catalogCacheRead()) {
+      render();
+      loadCatalog({ force: true }).catch(function () {});
+      return;
+    }
+    var p1 = api("/api/app/catalog");
+    var p2 = api("/api/app/courses").catch(function () { return { courses: [] }; });
+    var r = await Promise.all([p1, p2]);
+    var d = r[0] || {};
+    var cc = r[1] || {};
+    S.catalog.categories = d.categories || [];
+    S.products = d.products || [];
     S.total = d.products.length;
-    S.catalog.courses = d.courses;
+    S.courses = cc.courses && cc.courses.length ? cc.courses : d.courses || S.courses || [];
+    S.catalog.courses = S.courses;
     S.cart = d.cart;
     setBadge();
-    try {
-      var cc = await api("/api/app/courses");
-      S.courses = cc.courses;
-      S.catalog.courses = S.courses;
-    } catch (e) {}
+    catalogCacheWrite();
+    render();
   }
   async function loadProducts(opts) {
     opts = opts || {};
@@ -798,6 +833,10 @@
         else if (b === "edit") openProdForm(args.id);
         else if (b === "del") prodDel(args.id);
         else if (b === "tgl") prodTgl(args.id);
+        break;
+      case "rev":
+        if (b === "star") revPick(args.n);
+        else if (b === "send") sendReview();
         break;
       case "cat":
         if (b === "sel") {
@@ -934,6 +973,7 @@
       var d = await api("/api/app/products/" + id);
       S.product = d.product;
       S.cart = d.cart;
+      S.prodDetail = d;
       setBadge();
     } catch (e) {
       return toast(e.error || "Ошибка");
@@ -941,6 +981,42 @@
     var p = S.product;
     var q = inCart("product", p.id);
     var ov = $("#overlay");
+    var detail = S.prodDetail || {};
+    var reviews = detail.reviews || [];
+    var rating = (detail.rating && detail.rating.count) ? detail.rating : null;
+    var revHtml =
+      '<div class="o-sec o-rev">' +
+      '<div class="o-sec-h"><span class="o-sec-t">Отзывы</span>' +
+      (rating
+        ? '<span class="o-sec-v"><span class="stars-o">' + starsHTML(rating.avg) + "</span>" +
+          " <b>" + rating.avg.toFixed(1) + "</b> · " + rating.count + "</span>"
+        : '<span class="o-sec-v">Пока нет отзывов</span>') +
+      "</div>" +
+      (S.isAdmin
+        ? ""
+        : '<div class="o-sec-h">' +
+          '<span class="o-sec-t">Ваша оценка</span>' +
+          '<span class="stars pick" id="rev-stars">' + starsHTML(0, "r") + "</span>" +
+          "</div>" +
+          '<textarea class="rev-txt" id="rev-text" rows="3" placeholder="Поделитесь впечатлением о товаре…" maxlength="1000"></textarea>' +
+          '<button class="btn-add" style="width:100%" data-act="rev:send">Оставить отзыв</button>') +
+      '</div>' +
+      '<div class="rev-item' + (reviews.length ? "" : " empty") + '">' +
+      (reviews.length
+        ? reviews
+            .map(function (r) {
+              return (
+                '<div class="rev-card">' +
+                '<div class="rev-top"><div class="rev-who">' + esc(r.author) + "</div>" +
+                '<div class="rev-stars">' + starsHTML(r.rating) + "</div></div>" +
+                (r.text ? '<div class="rev-body">' + esc(r.text) + "</div>" : "") +
+                '<div class="rev-date">' + timeAgo(r.createdAt) + (r.mine ? " · ваш отзыв" : "") + "</div>" +
+                "</div>"
+              );
+            })
+            .join("")
+        : '<div class="rev-empty">Отзывов пока нет — станьте первым, кто оценит товар</div>') +
+      "</div>";
     ov.innerHTML =
       '<div class="o-close" data-act="prod:close">✕</div>' +
       '<div class="o-ph">' + imgHTML(p.imageUrl, p.name) + "</div>" +
@@ -948,14 +1024,72 @@
       '<div class="o-cat">' + esc(p.categoryName || "") + "</div>" +
       '<div class="o-nm">' + esc(p.name) + "</div>" +
       '<div class="o-pr">' + fmt(p.price) + "</div>" +
-      '<div class="o-desc">' + esc(p.description || "") + "</div>" +
+      (p.description
+        ? '<div class="o-sec"><div class="o-sec-t">Описание</div><div class="o-desc">' + esc(p.description) + "</div></div>"
+        : "") +
       '<div class="o-actions">' +
       (q > 0
         ? stepperHTML("prod", "product", p.id, q, null, p.stock)
         : '<button class="btn-add pink" style="flex:1" data-act="cart:add" data-type="product" data-id="' + p.id + '"' + (p.stock <= 0 ? " disabled" : "") + ">В корзину</button>") +
-      "</div></div>";
+      "</div>" +
+      revHtml +
+      "</div>";
     ov.hidden = false;
     tgOverlayBack();
+  }
+
+  function starsHTML(avg, tag) {
+    var n = Math.round(avg || 0);
+    var s = "";
+    for (var i = 1; i <= 5; i++) {
+      if (tag === "r") {
+        s += '<span class="r-star' + (i <= n ? " on" : "") + '" data-act="rev:star" data-n="' + i + (n > 0 && i === n ? ' data-cur="1"' : "") + '">★</span>';
+      } else {
+        s += '<span class="r-star' + (i <= n ? " on" : "") + '">★</span>';
+      }
+    }
+    return s;
+  }
+
+  function timeAgo(iso) {
+    if (!iso) return "";
+    var diff = Date.now() - new Date(iso).getTime();
+    var m = Math.floor(diff / 60000);
+    if (m < 1) return "только что";
+    if (m < 60) return m + " мин назад";
+    var h = Math.floor(m / 60);
+    if (h < 24) return h + " ч назад";
+    var d = Math.floor(h / 24);
+    if (d < 7) return d + " дн назад";
+    return new Date(iso).toLocaleDateString("ru-RU");
+  }
+
+  async function sendReview() {
+    if (!S.product) return;
+    var stars = S.revStars;
+    if (!stars) return toast("Поставьте оценку звёздами");
+    var text = ($("#rev-text") && $("#rev-text").value) || "";
+    try {
+      await api("/api/app/products/" + S.product.id + "/review", {
+        method: "POST",
+        body: JSON.stringify({ rating: stars, text: text }),
+      });
+      toast("Спасибо! Отзыв сохранён");
+      await openProduct(S.product.id);
+    } catch (e) {
+      toast(e.error || "Ошибка");
+    }
+  }
+
+  function revPick(n) {
+    haptic();
+    S.revStars = Number(n);
+    var wrap = $("#rev-stars");
+    if (!wrap) return;
+    var i, stars = wrap.querySelectorAll(".r-star");
+    for (i = 0; i < stars.length; i++) {
+      stars[i].classList.toggle("on", i < S.revStars);
+    }
   }
 
   async function openCourse(id) {
@@ -1659,10 +1793,14 @@
       S.tg.ready();
       S.tg.expand();
       try {
-        S.tg.setHeaderColor("#3a4148");
-        S.tg.setBackgroundColor("#f7f7fa");
+        S.tg.setHeaderColor("#2293d8");
+        S.tg.setBackgroundColor("#f2f5f9");
       } catch (e) {}
-      var me = await api("/api/app/me");
+      var cached = catalogCacheRead();
+      var pMe = api("/api/app/me");
+      var pCat = loadCatalog({ force: true });
+      if (cached) render();
+      var me = await pMe;
       S.user = me.user;
       S.isAdmin = me.isAdmin;
       S.profile = me.profile || S.profile;
@@ -1670,10 +1808,7 @@
       S.booted = true;
       $("#tabbar").style.display = "";
       render();
-      try {
-        await loadCatalog();
-        render();
-      } catch (e) {}
+      await pCat.catch(function () {});
     } catch (e) {
       var el = $("#app");
       el.innerHTML =

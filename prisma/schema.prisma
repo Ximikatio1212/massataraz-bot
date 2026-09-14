@@ -89,6 +89,7 @@ model User {
   payments        Payment[]
   aiConversation  Json?
   aiMode          Boolean   @default(false)
+  reviews         Review[]
 
   // Профиль доставки для Telegram Mini App (ФИО/адрес по умолчанию)
   profile         Json?
@@ -140,10 +141,28 @@ model Product {
   cartItems   CartItem[]
   courseItems CourseItem[]
   orderItems  OrderItem[]
+  reviews     Review[]
 
   @@index([categoryId])
   @@index([isActive])
   @@index([stock])
+}
+
+/// Отзывы клиентов о товарах
+model Review {
+  id        Int      @id @default(autoincrement())
+  productId Int
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rating    Int
+  text      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([productId, userId])
+  @@index([productId])
+  @@index([userId])
 }
 
 model Course {
