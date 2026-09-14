@@ -18,6 +18,25 @@
 [functions."app"]
   timeout = 26
 
+[functions."keepwarm"]
+  schedule = "*/5 * * * *"
+  timeout = 26
+
+[[headers]]
+  for = "/app.js"
+  [headers.values]
+    Cache-Control = "public, max-age=600, stale-while-revalidate=3600"
+
+[[headers]]
+  for = "/styles.css"
+  [headers.values]
+    Cache-Control = "public, max-age=600, stale-while-revalidate=3600"
+
+[[headers]]
+  for = "/logo.png"
+  [headers.values]
+    Cache-Control = "public, max-age=604800, immutable"
+
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"

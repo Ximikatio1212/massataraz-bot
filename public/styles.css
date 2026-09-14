@@ -1,8 +1,8 @@
 :root {
-  --wb-purple: #481173;
-  --wb-purple-2: #6d1fb4;
-  --wb-pink: #cb11ab;
-  --wb-dark: #1f2240;
+  --wb-purple: #3e454d;
+  --wb-purple-2: #56606a;
+  --wb-pink: #6b7280;
+  --wb-dark: #24272c;
   --bg: #f7f7fa;
   --card: #ffffff;
   --line: #ecebf0;
@@ -69,10 +69,10 @@ textarea:focus {
   position: sticky;
   top: 0;
   z-index: 30;
-  background: linear-gradient(160deg, #481173 0%, #6d1fb4 60%, #9319b8 100%);
+  background: linear-gradient(160deg, #3a4148 0%, #4b545e 60%, #5a6470 100%);
   color: #fff;
   padding: calc(10px + env(safe-area-inset-top)) 14px 10px;
-  box-shadow: 0 2px 8px rgba(72, 17, 115, 0.35);
+  box-shadow: 0 2px 8px rgba(31, 34, 40, 0.35);
 }
 .top-inner {
   display: flex;
@@ -608,7 +608,7 @@ textarea:focus {
   color: #fff;
   font-weight: 800;
   font-size: 15px;
-  box-shadow: 0 4px 12px rgba(203, 17, 171, 0.35);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
 }
 .btn-primary:disabled {
   opacity: 0.55;
@@ -645,7 +645,7 @@ textarea:focus {
 }
 
 .pay-card {
-  background: linear-gradient(160deg, #481173, #6d1fb4);
+  background: linear-gradient(160deg, #3a4148, #56606a);
   color: #fff;
   border-radius: var(--radius);
   padding: 16px;
@@ -668,7 +668,7 @@ textarea:focus {
   line-height: 1.5;
 }
 .pay-card .reqs b {
-  color: #ffd8f4;
+  color: #e8ebee;
 }
 
 .cheque-box {
@@ -758,7 +758,7 @@ textarea:focus {
 /* ── Профиль ── */
 .prof-card {
   margin: 14px var(--pad);
-  background: linear-gradient(160deg, #481173, #6d1fb4);
+  background: linear-gradient(160deg, #3a4148, #56606a);
   color: #fff;
   border-radius: var(--radius);
   padding: 18px 16px;

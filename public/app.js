@@ -1659,7 +1659,7 @@
       S.tg.ready();
       S.tg.expand();
       try {
-        S.tg.setHeaderColor("#481173");
+        S.tg.setHeaderColor("#3a4148");
         S.tg.setBackgroundColor("#f7f7fa");
       } catch (e) {}
       var me = await api("/api/app/me");
