@@ -1,4 +1,4 @@
-﻿-- CreateTable
+-- CreateTable
 CREATE TABLE "Review" (
     "id" SERIAL NOT NULL,
     "productId" INTEGER NOT NULL,
